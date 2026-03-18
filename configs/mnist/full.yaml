@@ -1,0 +1,25 @@
+# MNIST experiment — inherits default.yaml (TensorBoard logger, 100 epochs).
+# Set `classes` to a subset of digits (e.g. [1, 8]) to train on those only.
+# Leave `classes` unset (or null) to use all 10 digits.
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: mnist-full
+
+model:
+  num_classes: 10 # must match the number of entries in data.init_args.classes (or 10 if unset)
+  n_filters: 96
+  n_blocks: 4
+  warmup_epochs: 5
+  max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.mnist.MNISTDataModule
+  init_args:
+    data_dir: data/mnist
+    batch_size: 64
+    num_workers: 4
+    val_split: 0.1
+    classes: null

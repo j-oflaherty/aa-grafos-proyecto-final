@@ -1,0 +1,18 @@
+# Default trainer settings shared across all experiments.
+# Dataset-specific configs (mnist.yaml, imagenet.yaml) override these.
+
+trainer:
+  max_epochs: 100
+  log_every_n_steps: 50
+  logger:
+    class_path: lightning.pytorch.loggers.TensorBoardLogger
+    init_args:
+      save_dir: logs
+      name: vig
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/loss
+        mode: min
+        save_top_k: 1
+        filename: best
