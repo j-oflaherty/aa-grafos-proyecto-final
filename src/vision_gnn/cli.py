@@ -1,30 +1,30 @@
-"""Lightning CLI entry point for ViG training runs.
+"""Lightning CLI entry point for training runs.
 
 Usage examples
 --------------
-# MNIST with defaults (TensorBoard logs → logs/vig)
-vig-train fit --config configs/mnist.yaml
+# ViG on MNIST
+vig-train fit --config configs/vig/mnist/full.yaml
 
-# Override batch size and max epochs on the fly
-vig-train fit --config configs/mnist.yaml --data.batch_size 128 --trainer.max_epochs 50
+# ResNet baseline on MNIST
+vig-train fit --config configs/resnet/mnist.yaml
 
-# ImageNet
-vig-train fit --config configs/imagenet.yaml
+# Override batch size on the fly
+vig-train fit --config configs/resnet/mnist.yaml --data.batch_size 128
 
 # Resume from checkpoint
-vig-train fit --config configs/mnist.yaml --ckpt_path checkpoints/last.ckpt
+vig-train fit --config configs/resnet/mnist.yaml --ckpt_path checkpoints/last.ckpt
 """
 
+import lightning as L
 from lightning.pytorch.cli import LightningCLI
-
-from vision_gnn.lightning_module import VigLightningModule
 
 _SUBCOMMANDS = {"fit", "validate", "test", "predict"}
 
 
 def main() -> None:
     LightningCLI(
-        model_class=VigLightningModule,
+        model_class=L.LightningModule,
+        subclass_mode_model=True,
         subclass_mode_data=True,
         parser_kwargs={
             cmd: {"default_config_files": ["configs/default.yaml"]}

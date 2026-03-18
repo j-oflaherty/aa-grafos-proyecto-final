@@ -1,0 +1,28 @@
+# ResNet baseline on MNIST — inherits default.yaml (TensorBoard logger, 100 epochs).
+# MiniResNet: ~701 k parameters.  Same data pipeline as ViG experiments.
+# Set `classes` to a subset of digits (e.g. [1, 8]) to train on those only.
+# Leave `classes` unset (or null) to use all 10 digits.
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: resnet
+
+model:
+  class_path: vision_gnn.models.resnet.ResNetLightningModule
+  init_args:
+    num_classes: 10 # must match the number of entries in data.init_args.classes (or 10 if unset)
+    hidden_dim: 32  # stem output channels; each stage doubles (32 → 32, 64, 128 for num_layers=3)
+    num_layers: 3   # number of residual stages; increase for a deeper model
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.mnist.MNISTDataModule
+  init_args:
+    data_dir: data/mnist
+    batch_size: 64
+    num_workers: 4
+    val_split: 0.1
+    classes: null

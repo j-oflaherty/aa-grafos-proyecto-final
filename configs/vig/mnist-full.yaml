@@ -9,11 +9,13 @@ trainer:
       name: mnist-full
 
 model:
-  num_classes: 10 # must match the number of entries in data.init_args.classes (or 10 if unset)
-  n_filters: 96
-  n_blocks: 4
-  warmup_epochs: 5
-  max_epochs: 100
+  class_path: vision_gnn.models.vig.VigLightningModule
+  init_args:
+    num_classes: 10 # must match the number of entries in data.init_args.classes (or 10 if unset)
+    n_filters: 96
+    n_blocks: 4
+    warmup_epochs: 5
+    max_epochs: 100
 
 data:
   class_path: vision_gnn.data.mnist.MNISTDataModule

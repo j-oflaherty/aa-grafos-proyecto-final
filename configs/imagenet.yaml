@@ -1,0 +1,19 @@
+# ImageNet experiment — inherits default.yaml (TensorBoard logger, 100 epochs).
+# Set IMAGENET_DIR to your dataset root (expects train/ and val/ subdirs).
+
+model:
+  num_classes: 1000
+  n_filters: 192
+  n_blocks: 12
+  warmup_epochs: 5
+  max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.imagenet.ImageNetDataModule
+  init_args:
+    data_dir: /path/to/imagenet   # ← override with --data.data_dir
+    batch_size: 64
+    num_workers: 8
+
+trainer:
+  max_epochs: 100

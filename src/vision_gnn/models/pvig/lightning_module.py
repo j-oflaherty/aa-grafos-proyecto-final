@@ -1,13 +1,15 @@
+from typing import List
+
 import lightning as L
 import torch
 import torch.nn.functional as F
 from torchmetrics.functional import accuracy
 
-from vision_gnn.vig import DeepGCN
+from .pvig import PyramidDeepGCN
 
 
-class VigLightningModule(L.LightningModule):
-    """PyTorch Lightning wrapper for the Vision GNN (ViG) model.
+class PVigLightningModule(L.LightningModule):
+    """PyTorch Lightning wrapper for the Pyramid Vision GNN (pViG) model.
 
     Datamodule contract
     -------------------
@@ -15,33 +17,20 @@ class VigLightningModule(L.LightningModule):
     - ``images``: ``Tensor[B, 3, 224, 224]`` — RGB, float32.
     - ``labels``: ``Tensor[B]`` — integer class indices.
 
-    MNIST notes
-    -----------
-    Resize 28×28 → 224×224 and convert grayscale to 3-channel before feeding.
-    Example transform::
-
-        transforms.Compose([
-            transforms.Resize(224),
-            transforms.Grayscale(num_output_channels=3),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,)),
-        ])
-
     Args:
         num_classes:      Output classes (10 for MNIST, 1000 for ImageNet).
-        n_filters:        Channel width of deep features.
-        n_blocks:         Number of Grapher+FFN blocks in backbone.
-        k:                Base KNN neighbors (grows linearly to 2k).
+        blocks:           Grapher+FFN blocks per stage, e.g. ``[2,2,6,2]``.
+        channels:         Feature channels per stage, e.g. ``[48,96,240,384]``.
+        k:                KNN neighbors (constant across all blocks).
         conv:             Graph conv type: ``'mr'`` | ``'edge'`` | ``'sage'`` | ``'gin'``.
         act:              Activation: ``'relu'`` | ``'gelu'`` | ``'prelu'`` | ``'leakyrelu'`` | ``'hswish'``.
         norm:             Normalisation: ``'batch'`` | ``'instance'``.
         bias:             Bias in conv layers.
-        use_dilation:     Use dilated KNN graph.
         use_stochastic:   Stochastic graph construction.
         epsilon:          Stochastic graph epsilon.
         drop_path_rate:   Max stochastic depth drop rate.
         dropout:          Dropout before the classifier head.
-        in_channels:      Input channels (3 for RGB, 1 for grayscale).
+        in_channels:      Input channels (3 for RGB).
         lr:               Peak learning rate for AdamW.
         weight_decay:     AdamW weight decay.
         warmup_epochs:    Linear-warmup length (epochs).
@@ -51,14 +40,13 @@ class VigLightningModule(L.LightningModule):
     def __init__(
         self,
         num_classes: int = 1000,
-        n_filters: int = 192,
-        n_blocks: int = 12,
+        blocks: List[int] = (2, 2, 6, 2),
+        channels: List[int] = (48, 96, 240, 384),
         k: int = 9,
         conv: str = "mr",
         act: str = "gelu",
         norm: str = "batch",
         bias: bool = True,
-        use_dilation: bool = True,
         use_stochastic: bool = False,
         epsilon: float = 0.2,
         drop_path_rate: float = 0.0,
@@ -72,16 +60,15 @@ class VigLightningModule(L.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = DeepGCN(
+        self.model = PyramidDeepGCN(
             num_classes=num_classes,
-            n_filters=n_filters,
-            n_blocks=n_blocks,
+            blocks=list(blocks),
+            channels=list(channels),
             k=k,
             conv=conv,
             act=act,
             norm=norm,
             bias=bias,
-            use_dilation=use_dilation,
             use_stochastic=use_stochastic,
             epsilon=epsilon,
             drop_path_rate=drop_path_rate,
@@ -90,23 +77,28 @@ class VigLightningModule(L.LightningModule):
         )
 
     # ------------------------------------------------------------------
-    # Preset constructors matching the three official ViG variants
+    # Preset constructors matching the four official pViG variants
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_tiny(cls, **kwargs) -> "VigLightningModule":
-        """ViG-Ti: 192 filters, 12 blocks, GELU."""
-        return cls(n_filters=192, n_blocks=12, act="gelu", **kwargs)
+    def from_tiny(cls, **kwargs) -> "PVigLightningModule":
+        """pViG-Ti: channels=[48,96,240,384], blocks=[2,2,6,2]."""
+        return cls(blocks=[2, 2, 6, 2], channels=[48, 96, 240, 384], **kwargs)
 
     @classmethod
-    def from_small(cls, **kwargs) -> "VigLightningModule":
-        """ViG-S: 320 filters, 16 blocks, GELU."""
-        return cls(n_filters=320, n_blocks=16, act="gelu", **kwargs)
+    def from_small(cls, **kwargs) -> "PVigLightningModule":
+        """pViG-S: channels=[80,160,400,640], blocks=[2,2,6,2]."""
+        return cls(blocks=[2, 2, 6, 2], channels=[80, 160, 400, 640], **kwargs)
 
     @classmethod
-    def from_base(cls, **kwargs) -> "VigLightningModule":
-        """ViG-B: 640 filters, 16 blocks, GELU."""
-        return cls(n_filters=640, n_blocks=16, act="gelu", **kwargs)
+    def from_medium(cls, **kwargs) -> "PVigLightningModule":
+        """pViG-M: channels=[96,192,384,768], blocks=[2,2,16,2]."""
+        return cls(blocks=[2, 2, 16, 2], channels=[96, 192, 384, 768], **kwargs)
+
+    @classmethod
+    def from_base(cls, **kwargs) -> "PVigLightningModule":
+        """pViG-B: channels=[128,256,512,1024], blocks=[2,2,18,2]."""
+        return cls(blocks=[2, 2, 18, 2], channels=[128, 256, 512, 1024], **kwargs)
 
     # ------------------------------------------------------------------
     # Forward

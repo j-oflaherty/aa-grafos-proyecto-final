@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from timm.models.layers import DropPath
 from torch.nn import Sequential as Seq
 
-from vision_gnn.model import Grapher, act_layer
+from vision_gnn.models.vig.modelling import Grapher, act_layer
 
 
 class FFN(nn.Module):

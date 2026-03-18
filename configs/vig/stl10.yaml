@@ -1,0 +1,26 @@
+# ViG on STL-10 — inherits default.yaml (TensorBoard logger, 100 epochs).
+# STL-10: 10 classes, 96×96 RGB, 5 000 train / 8 000 test images.
+# Images are resized to 224×224 to match the ViG patch pipeline.
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: vig-stl10
+
+model:
+  class_path: vision_gnn.models.vig.VigLightningModule
+  init_args:
+    num_classes: 10
+    n_filters: 192
+    n_blocks: 8
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.stl10.STL10DataModule
+  init_args:
+    data_dir: data/stl10
+    batch_size: 64
+    num_workers: 4
+    val_split: 0.1
