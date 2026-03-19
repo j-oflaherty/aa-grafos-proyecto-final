@@ -1,9 +1,10 @@
+from typing import List
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import DropPath
 from torch.nn import Sequential as Seq
-from typing import List
 
 from vision_gnn.models.vig.modelling import Grapher, act_layer
 

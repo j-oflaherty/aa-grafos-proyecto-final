@@ -19,11 +19,11 @@ vig-train = "vision_gnn.cli:main"
 
 [dependency-groups]
 dev = [
-    "ipykernel>=7.2.0",
-    "matplotlib>=3.10.8",
-    "ruff>=0.15.6",
-    "setuptools==81.0",
-    "ty>=0.0.23",
+  "ipykernel>=7.2.0",
+  "matplotlib>=3.10.8",
+  "ruff>=0.15.6",
+  "setuptools==81.0",
+  "ty>=0.0.23",
 ]
 
 [build-system]
@@ -31,4 +31,4 @@ requires = ["uv_build>=0.10.9,<0.11.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-name = ["vision_gnn", "data"]
+module-name = ["vision_gnn"]

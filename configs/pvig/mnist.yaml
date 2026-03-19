@@ -1,0 +1,39 @@
+# Pyramid ViG on MNIST — ~720K parameters.
+# Architecture: blocks=[2,2,6,2], channels=[12,24,60,96] → 733,898 params.
+# Channel ratio 1:2:5:8 and block pattern match the paper's Ti/S design exactly.
+# Inherits trainer defaults from default.yaml (TensorBoard, checkpoint, early-stop).
+#
+# Usage:
+#   vig-train fit --config configs/default.yaml --config configs/pvig/mnist.yaml
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: pvig-mnist
+
+model:
+  class_path: vision_gnn.models.pvig.PVigLightningModule
+  init_args:
+    num_classes: 10
+    blocks: [2, 2, 6, 2]
+    channels: [12, 24, 60, 96]
+    k: 9
+    conv: mr
+    act: gelu
+    drop_path_rate: 0.0
+    dropout: 0.0
+    in_channels: 3
+    lr: 1.0e-3
+    weight_decay: 0.05
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.mnist.MNISTDataModule
+  init_args:
+    data_dir: data/mnist
+    batch_size: 128
+    num_workers: 4
+    val_split: 0.1
+    classes: null

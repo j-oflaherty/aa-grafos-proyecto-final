@@ -1,0 +1,40 @@
+# Pyramid ViG on STL-10 — ~4M parameters.
+# Architecture: blocks=[2,2,6,2], channels=[32,64,160,256] → 4,454,858 params.
+# Channel ratio 1:2:5:8 and block pattern match the paper's Ti/S design exactly.
+# STL-10: 10 classes, 96×96 RGB resized to 224×224; 5 000 labeled train / 8 000 test.
+# Higher regularisation (drop_path, dropout) compensates for the small training set.
+# Inherits trainer defaults from default.yaml (TensorBoard, checkpoint, early-stop).
+#
+# Usage:
+#   vig-train fit --config configs/default.yaml --config configs/pvig/stl10.yaml
+
+trainer:
+  max_epochs: 200
+  logger:
+    init_args:
+      name: pvig-stl10
+
+model:
+  class_path: vision_gnn.models.pvig.PVigLightningModule
+  init_args:
+    num_classes: 10
+    blocks: [2, 2, 6, 2]
+    channels: [32, 64, 160, 256]
+    k: 9
+    conv: mr
+    act: gelu
+    drop_path_rate: 0.1
+    dropout: 0.1
+    in_channels: 3
+    lr: 5.0e-4
+    weight_decay: 0.05
+    warmup_epochs: 10
+    max_epochs: 200
+
+data:
+  class_path: vision_gnn.data.stl10.STL10DataModule
+  init_args:
+    data_dir: data/stl10
+    batch_size: 32
+    num_workers: 4
+    val_split: 0.1
