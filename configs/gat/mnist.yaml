@@ -1,0 +1,28 @@
+# GAT superpixel on MNIST — inherits default.yaml (TensorBoard logger, 100 epochs).
+# MNIST: 10 classes, 28×28 grayscale → 3 node features (gray + xy).
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: gat-mnist
+
+model:
+  class_path: vision_gnn.models.superpixel_gat.GATLightningModule
+  init_args:
+    num_features: 3
+    num_classes: 10
+    num_heads: [2, 2, 2]
+    lr: 1.0e-3
+    weight_decay: 0.0
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.MNISTSuperpixelDataModule
+  init_args:
+    data_dir: data/mnist
+    desired_nodes: 75
+    batch_size: 32
+    num_workers: 4
+    val_split: 0.1

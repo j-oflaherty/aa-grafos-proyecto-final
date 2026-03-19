@@ -1,0 +1,27 @@
+# MNIST mini experiment — ~51k parameters.
+# Reduced n_filters (16) and kept n_blocks=4 to stay near the 50k target.
+# The prediction head (→1024→10) dominates (~30k); backbone adds ~14k.
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: mnist-mini
+
+model:
+  class_path: vision_gnn.models.vig.VigLightningModule
+  init_args:
+    num_classes: 10
+    n_filters: 16
+    n_blocks: 4
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.mnist.MNISTDataModule
+  init_args:
+    data_dir: data/mnist
+    batch_size: 64
+    num_workers: 4
+    val_split: 0.1
+    classes: null

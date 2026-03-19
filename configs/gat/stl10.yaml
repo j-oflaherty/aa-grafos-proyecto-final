@@ -1,0 +1,28 @@
+# GAT superpixel on STL-10 — inherits default.yaml (TensorBoard logger, 100 epochs).
+# STL-10: 10 classes, 96×96 RGB → 5 node features (rgb + xy).
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: gat-stl10
+
+model:
+  class_path: vision_gnn.models.superpixel_gat.GATLightningModule
+  init_args:
+    num_features: 5
+    num_classes: 10
+    num_heads: [2, 2, 2]
+    lr: 1.0e-3
+    weight_decay: 0.0
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.STL10SuperpixelDataModule
+  init_args:
+    data_dir: data/stl10
+    desired_nodes: 75
+    batch_size: 32
+    num_workers: 4
+    val_split: 0.1
