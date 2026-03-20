@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -10,21 +11,47 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 
-def get_graph_from_image(
-    image: np.ndarray,
-    desired_nodes: int = 75,
-) -> tuple[Tensor, Tensor]:
-    """Convert an image to a superpixel graph.
+@dataclass(frozen=True)
+class SuperpixelGraph:
+    """Container for one superpixel graph generated from an input image.
 
-    Args:
-        image: Float32 array of shape (H, W, C), values in [0, 1].
-        desired_nodes: Target number of superpixels.
+    Attributes:
+        node_features: Float32 tensor of shape (N, C+2), where each row is
+            [channel_means..., x_mean, y_mean].
+        edge_index: Int64 tensor of shape (2*M, 2) with directed edges
+            (including reverse edges and self-loops).
+        adjacency: Float32 tensor of shape (N, N), dense adjacency matrix.
+        segments: Int64 tensor of shape (H, W), per-pixel superpixel id map.
+    """
+
+    node_features: Tensor
+    edge_index: Tensor
+    adjacency: Tensor
+    segments: Tensor
+
+
+def _build_graph_arrays(
+    image: np.ndarray,
+    desired_nodes: int,
+    compactness: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Build superpixel graph arrays from one image.
 
     Returns:
-        h: Float32 tensor of shape (N, C+2) — per-node features (mean colour + mean xy position).
-        edges: Int64 tensor of shape (2*M, 2) — bidirectional edge list (src, tgt).
+        h_np: Node features, shape (N, C+2), float32.
+        edges_np: Directed edge list, shape (2*M, 2), int64.
+        segments: Remapped superpixel ids, shape (H, W), int64.
     """
-    segments = slic(image, n_segments=desired_nodes, slic_zero=True)
+    if image.ndim == 2:
+        image = np.expand_dims(image, axis=-1)
+
+    segments = slic(
+        image,
+        n_segments=desired_nodes,
+        compactness=compactness,
+        slic_zero=True,
+        channel_axis=-1,
+    )
     H, W = segments.shape[:2]
     n_channels = image.shape[2] if image.ndim == 3 else 1
 
@@ -72,6 +99,62 @@ def get_graph_from_image(
     rev = fwd[:, [1, 0]]  # (M, 2) — reversed
 
     edges_np = np.concatenate([fwd, rev], axis=0)  # (2*M, 2)
+    return h_np, edges_np, segments.astype(np.int64)
+
+
+def get_superpixel_graph_from_image(
+    image: np.ndarray,
+    desired_nodes: int = 75,
+    compactness: float = 0.1,
+) -> SuperpixelGraph:
+    """Return the full superpixel graph produced from one input image.
+
+    This is useful for visualization/debugging because it exposes both the
+    SLIC segmentation map and graph tensors in one object.
+    """
+    h_np, edges_np, segments_np = _build_graph_arrays(
+        image,
+        desired_nodes,
+        compactness=compactness,
+    )
+
+    node_features = torch.from_numpy(h_np)
+    edge_index = torch.from_numpy(edges_np)
+    segments = torch.from_numpy(segments_np)
+
+    n_nodes = node_features.shape[0]
+    adjacency = torch.zeros((n_nodes, n_nodes), dtype=torch.float32)
+    adjacency[edge_index[:, 0], edge_index[:, 1]] = 1.0
+
+    return SuperpixelGraph(
+        node_features=node_features,
+        edge_index=edge_index,
+        adjacency=adjacency,
+        segments=segments,
+    )
+
+
+def get_graph_from_image(
+    image: np.ndarray,
+    desired_nodes: int = 75,
+    compactness: float = 0.1,
+) -> tuple[Tensor, Tensor]:
+    """Convert an image to a superpixel graph.
+
+    Args:
+        image: Float32 array of shape (H, W, C), values in [0, 1].
+        desired_nodes: Target number of superpixels.
+        compactness: Balances color similarity vs grid regularity in SLIC.
+
+    Returns:
+        h: Float32 tensor of shape (N, C+2) — per-node features (mean colour + mean xy position).
+        edges: Int64 tensor of shape (2*M, 2) — bidirectional edge list (src, tgt).
+    """
+    h_np, edges_np, _ = _build_graph_arrays(
+        image,
+        desired_nodes,
+        compactness=compactness,
+    )
 
     return (
         torch.from_numpy(h_np),
