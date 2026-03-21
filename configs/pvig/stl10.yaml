@@ -2,14 +2,14 @@
 # Architecture: blocks=[2,2,6,2], channels=[32,64,160,256] → 4,454,858 params.
 # Channel ratio 1:2:5:8 and block pattern match the paper's Ti/S design exactly.
 # STL-10: 10 classes, 96×96 RGB resized to 224×224; 5 000 labeled train / 8 000 test.
-# Higher regularisation (drop_path, dropout) compensates for the small training set.
+# Training hyper-parameters match Table 3 of the ViG paper (ImageNet recipe).
 # Inherits trainer defaults from default.yaml (TensorBoard, checkpoint, early-stop).
 #
 # Usage:
 #   vig-train fit --config configs/default.yaml --config configs/pvig/stl10.yaml
 
 trainer:
-  max_epochs: 200
+  max_epochs: 300
   logger:
     init_args:
       name: pvig-stl10
@@ -26,10 +26,12 @@ model:
     drop_path_rate: 0.1
     dropout: 0.1
     in_channels: 3
-    lr: 5.0e-4
+    lr: 2.0e-3
     weight_decay: 0.05
-    warmup_epochs: 10
-    max_epochs: 200
+    warmup_epochs: 20
+    max_epochs: 300
+    ema_decay: 0.99996
+    label_smoothing: 0.1
 
 data:
   class_path: vision_gnn.data.stl10.STL10DataModule
@@ -38,3 +40,11 @@ data:
     batch_size: 32
     num_workers: 4
     val_split: 0.1
+    augmentation:
+      class_path: vision_gnn.data.augmentation.AugmentationConfig
+      init_args:
+        rand_augment: true
+        repeated_augment: 3
+        mixup_alpha: 0.8
+        cutmix_alpha: 1.0
+        random_erasing_prob: 0.25

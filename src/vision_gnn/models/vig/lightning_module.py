@@ -1,3 +1,5 @@
+import copy
+
 import lightning as L
 import torch
 import torch.nn.functional as F
@@ -46,6 +48,8 @@ class VigLightningModule(L.LightningModule):
         weight_decay:     AdamW weight decay.
         warmup_epochs:    Linear-warmup length (epochs).
         max_epochs:       Total training epochs (for cosine decay end).
+        ema_decay:        EMA decay for shadow weights (0.0 = disabled).
+        label_smoothing:  Label smoothing passed to cross-entropy loss (0.0 = disabled).
     """
 
     def __init__(
@@ -68,6 +72,8 @@ class VigLightningModule(L.LightningModule):
         weight_decay: float = 0.05,
         warmup_epochs: int = 5,
         max_epochs: int = 100,
+        ema_decay: float = 0.0,
+        label_smoothing: float = 0.0,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -88,6 +94,8 @@ class VigLightningModule(L.LightningModule):
             dropout=dropout,
             in_channels=in_channels,
         )
+
+        self._ema_model = None  # lazily created on first training batch
 
     # ------------------------------------------------------------------
     # Preset constructors matching the three official ViG variants
@@ -116,13 +124,38 @@ class VigLightningModule(L.LightningModule):
         return self.model(x)
 
     # ------------------------------------------------------------------
+    # EMA helpers
+    # ------------------------------------------------------------------
+
+    def _init_ema(self) -> None:
+        """Create the EMA shadow model on the same device as self.model."""
+        self._ema_model = copy.deepcopy(self.model)
+        self._ema_model.to(next(self.model.parameters()).device)
+        self._ema_model.eval()
+        for p in self._ema_model.parameters():
+            p.requires_grad_(False)
+
+    def _update_ema(self) -> None:
+        """Update shadow weights: shadow = decay * shadow + (1 - decay) * online."""
+        decay = self.hparams.ema_decay
+        with torch.no_grad():
+            for shadow, online in zip(
+                self._ema_model.parameters(), self.model.parameters()
+            ):
+                shadow.copy_(decay * shadow + (1.0 - decay) * online)
+
+    # ------------------------------------------------------------------
     # Steps
     # ------------------------------------------------------------------
 
     def _shared_step(self, batch, stage: str):
         images, labels = batch
         logits = self(images)
-        loss = F.cross_entropy(logits, labels)
+        loss = F.cross_entropy(
+            logits,
+            labels,
+            label_smoothing=self.hparams.label_smoothing,
+        )
 
         # Mixup / CutMix yield soft (float) labels — use argmax for accuracy.
         hard_labels = labels.argmax(1) if labels.is_floating_point() else labels
@@ -155,6 +188,12 @@ class VigLightningModule(L.LightningModule):
         return loss
 
     def training_step(self, batch, batch_idx):
+        if self.hparams.ema_decay > 0.0:
+            if self._ema_model is None:
+                self._init_ema()
+            loss = self._shared_step(batch, "train")
+            self._update_ema()
+            return loss
         return self._shared_step(batch, "train")
 
     def validation_step(self, batch, batch_idx):
@@ -162,6 +201,48 @@ class VigLightningModule(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         self._shared_step(batch, "test")
+
+    # ------------------------------------------------------------------
+    # EMA weight swapping for eval epochs
+    # ------------------------------------------------------------------
+
+    def on_validation_epoch_start(self) -> None:
+        if self.hparams.ema_decay > 0.0 and self._ema_model is not None:
+            self._original_state = {
+                k: v.clone() for k, v in self.model.state_dict().items()
+            }
+            self.model.load_state_dict(self._ema_model.state_dict())
+
+    def on_validation_epoch_end(self) -> None:
+        if self.hparams.ema_decay > 0.0 and hasattr(self, "_original_state"):
+            self.model.load_state_dict(self._original_state)
+            del self._original_state
+
+    def on_test_epoch_start(self) -> None:
+        if self.hparams.ema_decay > 0.0 and self._ema_model is not None:
+            self._original_state = {
+                k: v.clone() for k, v in self.model.state_dict().items()
+            }
+            self.model.load_state_dict(self._ema_model.state_dict())
+
+    def on_test_epoch_end(self) -> None:
+        if self.hparams.ema_decay > 0.0 and hasattr(self, "_original_state"):
+            self.model.load_state_dict(self._original_state)
+            del self._original_state
+
+    # ------------------------------------------------------------------
+    # Checkpoint persistence for EMA state
+    # ------------------------------------------------------------------
+
+    def on_save_checkpoint(self, checkpoint: dict) -> None:
+        if self._ema_model is not None:
+            checkpoint["ema_state_dict"] = self._ema_model.state_dict()
+
+    def on_load_checkpoint(self, checkpoint: dict) -> None:
+        if "ema_state_dict" in checkpoint:
+            if self._ema_model is None:
+                self._init_ema()
+            self._ema_model.load_state_dict(checkpoint["ema_state_dict"])
 
     # ------------------------------------------------------------------
     # Optimiser + scheduler
