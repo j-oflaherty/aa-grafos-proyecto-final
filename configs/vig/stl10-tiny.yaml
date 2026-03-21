@@ -1,0 +1,26 @@
+# ViG-Ti on STL-10 — inherits default.yaml (TensorBoard logger, 100 epochs).
+# ViG-Ti: 192 filters, 12 blocks — 7.1 M params, 1.3 B FLOPs.
+# STL-10: 10 classes, 96×96 RGB resized to 224×224.
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: vig-ti-stl10
+
+model:
+  class_path: vision_gnn.models.vig.VigLightningModule
+  init_args:
+    num_classes: 10
+    n_filters: 192
+    n_blocks: 12
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.stl10.STL10DataModule
+  init_args:
+    data_dir: data/stl10
+    batch_size: 64
+    num_workers: 4
+    val_split: 0.1
