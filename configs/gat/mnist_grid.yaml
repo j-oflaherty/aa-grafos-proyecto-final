@@ -1,0 +1,28 @@
+# GAT grid graph on MNIST — naive patch baseline vs gat/mnist.yaml.
+# MNIST: 10 classes, 28×28 grayscale → grid_size=7 → 49 nodes of 4×4 px, 3 node features.
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: gat-mnist-grid
+
+model:
+  class_path: vision_gnn.models.superpixel_gat.GATLightningModule
+  init_args:
+    num_features: 3
+    num_classes: 10
+    num_heads: [2, 2, 2]
+    lr: 1.0e-3
+    weight_decay: 0.0
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.MNISTGridDataModule
+  init_args:
+    data_dir: data/mnist
+    grid_size: 7
+    batch_size: 32
+    num_workers: 4
+    val_split: 0.1
