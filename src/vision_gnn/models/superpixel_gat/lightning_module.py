@@ -59,6 +59,7 @@ class GATLightningModule(L.LightningModule):
 
     def _shared_step(self, batch, stage: str):
         h, adj, src, tgt, Msrc, Mtgt, Mgraph, labels = batch
+        batch_size = labels.size(0)
         logits = self(h, adj, src, tgt, Msrc, Mtgt, Mgraph)
         loss = F.cross_entropy(logits, labels)
         top1 = accuracy(
@@ -75,9 +76,9 @@ class GATLightningModule(L.LightningModule):
             num_classes=self.hparams.num_classes,
             top_k=min(5, self.hparams.num_classes),
         )
-        self.log(f"{stage}/loss", loss, on_step=(stage == "train"), on_epoch=True, prog_bar=True)
-        self.log(f"{stage}/acc_top1", top1, on_step=False, on_epoch=True, prog_bar=True)
-        self.log(f"{stage}/acc_top5", top5, on_step=False, on_epoch=True)
+        self.log(f"{stage}/loss", loss, on_step=(stage == "train"), on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log(f"{stage}/acc_top1", top1, on_step=False, on_epoch=True, prog_bar=True, batch_size=batch_size)
+        self.log(f"{stage}/acc_top5", top5, on_step=False, on_epoch=True, batch_size=batch_size)
         return loss
 
     def training_step(self, batch, batch_idx):
