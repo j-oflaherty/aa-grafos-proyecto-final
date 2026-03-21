@@ -79,6 +79,73 @@ def get_graph_from_image(
     )
 
 
+def get_grid_graph_from_image(
+    image: np.ndarray,
+    grid_size: int = 8,
+    use_raw_pixels: bool = False,
+) -> tuple[Tensor, Tensor]:
+    """Convert an image to a regular N×N patch grid graph.
+
+    The image is divided into ``grid_size × grid_size`` equal-sized patches.
+
+    Args:
+        image: Float32 array of shape (H, W, C), values in [0, 1].
+            H and W must each be divisible by ``grid_size``.
+        grid_size: Number of patches along each spatial axis.
+        use_raw_pixels: If ``False`` (default), node features are
+            ``[mean_colour..., x_centre, y_centre]`` — shape ``(N, C+2)``.
+            If ``True``, node features are the flattened patch pixels —
+            shape ``(N, ph*pw*C)``.
+
+    Returns:
+        h: Float32 tensor of shape ``(N, F)`` where N = grid_size².
+        edges: Int64 tensor of shape (2*M, 2) — bidirectional edge list.
+    """
+    H, W, C = image.shape
+    assert H % grid_size == 0 and W % grid_size == 0, (
+        f"Image dimensions ({H}×{W}) must be divisible by grid_size={grid_size}"
+    )
+    ph, pw = H // grid_size, W // grid_size
+
+    # Reshape to (grid_size, grid_size, ph, pw, C) — shared by both modes
+    patches = image.reshape(grid_size, ph, grid_size, pw, C).transpose(0, 2, 1, 3, 4)
+
+    if use_raw_pixels:
+        # Flatten each patch's pixels: (G, G, ph*pw*C)
+        h_np = patches.reshape(grid_size * grid_size, ph * pw * C).astype(np.float32)
+    else:
+        # Per-patch colour means + normalised centre coordinates
+        colour_means = patches.mean(axis=(2, 3)).astype(np.float32)  # (G, G, C)
+        row_c = ((np.arange(grid_size) * ph + ph / 2) / H).astype(np.float32)
+        col_c = ((np.arange(grid_size) * pw + pw / 2) / W).astype(np.float32)
+        yy, xx = np.meshgrid(row_c, col_c, indexing="ij")  # (G, G)
+        h_np = np.concatenate(
+            [colour_means.reshape(-1, C), np.stack([xx.ravel(), yy.ravel()], axis=-1)],
+            axis=1,
+        )  # (N, C+2)
+
+    # 4-connected edge list (right + below neighbors)
+    node_ids = np.arange(grid_size * grid_size).reshape(grid_size, grid_size)
+    right_src = node_ids[:, :-1].ravel()
+    right_tgt = node_ids[:, 1:].ravel()
+    below_src = node_ids[:-1, :].ravel()
+    below_tgt = node_ids[1:, :].ravel()
+
+    non_self = np.stack(
+        [np.concatenate([right_src, below_src]), np.concatenate([right_tgt, below_tgt])]
+    )  # (2, K)
+
+    arange = np.arange(grid_size * grid_size)
+    self_loops = np.stack([arange, arange])  # (2, N)
+
+    fwd = np.concatenate([non_self, self_loops], axis=1).T.astype(np.int64)  # (M, 2)
+    rev = fwd[:, [1, 0]]
+
+    edges_np = np.concatenate([fwd, rev], axis=0)  # (2*M, 2)
+
+    return torch.from_numpy(h_np), torch.from_numpy(edges_np)
+
+
 def batch_graphs(gs: list[tuple[Tensor, Tensor]]) -> tuple[Tensor, ...]:
     """Batch a list of (h, edges) graphs into block-diagonal tensors.
 
@@ -149,6 +216,47 @@ class SuperpixelGraphDataset(Dataset):
         else:
             self.graphs = [
                 get_graph_from_image(images[i], desired_nodes)
+                for i in range(len(images))
+            ]
+            if cache_path is not None:
+                torch.save(self.graphs, cache_path)
+
+    def __len__(self) -> int:
+        return len(self.labels)
+
+    def __getitem__(self, idx: int) -> tuple[tuple[Tensor, Tensor], int]:
+        return self.graphs[idx], int(self.labels[idx])
+
+
+class GridGraphDataset(Dataset):
+    """Pre-computes regular grid graphs from raw images with optional disk cache.
+
+    Args:
+        images: Float32 array of shape (N, H, W, C), values in [0, 1].
+        labels: 1-D array of integer class labels, length N.
+        grid_size: Number of patches along each spatial axis (N×N grid).
+        cache_path: Optional ``.pt`` file path. Graphs are loaded from disk if
+            the file exists; otherwise they are computed and saved there.
+        use_raw_pixels: If ``False`` (default), node features are
+            ``[mean_colour..., x_centre, y_centre]``.
+            If ``True``, node features are the flattened patch pixels.
+    """
+
+    def __init__(
+        self,
+        images: np.ndarray,
+        labels,
+        grid_size: int = 8,
+        cache_path: Optional[str] = None,
+        use_raw_pixels: bool = False,
+    ) -> None:
+        self.labels = labels
+
+        if cache_path is not None and os.path.exists(cache_path):
+            self.graphs = torch.load(cache_path, weights_only=False)
+        else:
+            self.graphs = [
+                get_grid_graph_from_image(images[i], grid_size, use_raw_pixels)
                 for i in range(len(images))
             ]
             if cache_path is not None:

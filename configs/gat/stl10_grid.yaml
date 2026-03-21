@@ -1,0 +1,28 @@
+# GAT grid graph on STL-10 — naive patch baseline vs gat/stl10.yaml.
+# STL-10: 10 classes, 96×96 RGB → grid_size=8 → 64 nodes of 12×12 px, 5 node features.
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: gat-stl10-grid
+
+model:
+  class_path: vision_gnn.models.superpixel_gat.GATLightningModule
+  init_args:
+    num_features: 5
+    num_classes: 10
+    num_heads: [2, 2, 2]
+    lr: 1.0e-3
+    weight_decay: 0.0
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.STL10GridDataModule
+  init_args:
+    data_dir: data/stl10
+    grid_size: 8
+    batch_size: 32
+    num_workers: 4
+    val_split: 0.1
