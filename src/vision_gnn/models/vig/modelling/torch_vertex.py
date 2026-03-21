@@ -2,12 +2,13 @@
 #            Huawei Technologies Co., Ltd. <foss@huawei.com>
 import numpy as np
 import torch
-from torch import nn
-from .torch_nn import BasicConv, batched_index_select, act_layer
-from .torch_edge import DenseDilatedKnnGraph
-from .pos_embed import get_2d_relative_pos_embed
 import torch.nn.functional as F
 from timm.models.layers import DropPath
+from torch import nn
+
+from .pos_embed import get_2d_relative_pos_embed
+from .torch_edge import DenseDilatedKnnGraph
+from .torch_nn import BasicConv, act_layer, batched_index_select
 
 
 class MRConv2d(nn.Module):
@@ -140,18 +141,26 @@ class DyGraphConv2d(GraphConv2d):
         self.k = kernel_size
         self.d = dilation
         self.r = r
+        self.capture_graph = False
+        self.last_edge_index = None
+        self.last_hw = None
         self.dilated_knn_graph = DenseDilatedKnnGraph(
             kernel_size, dilation, stochastic, epsilon
         )
 
     def forward(self, x, relative_pos=None):
         B, C, H, W = x.shape
+        self.last_hw = (H, W)
         y = None
         if self.r > 1:
             y = F.avg_pool2d(x, self.r, self.r)
             y = y.reshape(B, C, -1, 1).contiguous()
         x = x.reshape(B, C, -1, 1).contiguous()
         edge_index = self.dilated_knn_graph(x, y, relative_pos)
+        if self.capture_graph:
+            self.last_edge_index = edge_index.detach().cpu()
+        else:
+            self.last_edge_index = None
         x = super(DyGraphConv2d, self).forward(x, edge_index, y)
         return x.reshape(B, -1, H, W).contiguous()
 

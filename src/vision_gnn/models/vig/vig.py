@@ -156,6 +156,30 @@ class DeepGCN(nn.Module):
                     m.bias.data.zero_()
                     m.bias.requires_grad = True
 
+    def set_graph_capture(self, enabled: bool) -> None:
+        """Enable or disable dynamic graph capture in all Grapher blocks."""
+        for block in self.backbone:
+            grapher = block[0]
+            grapher.graph_conv.capture_graph = enabled
+            if not enabled:
+                grapher.graph_conv.last_edge_index = None
+
+    def get_captured_graphs(self):
+        """Return captured graph metadata for each backbone Grapher block."""
+        graphs = []
+        for block_idx, block in enumerate(self.backbone):
+            graph_conv = block[0].graph_conv
+            graphs.append(
+                {
+                    "block_idx": block_idx,
+                    "edge_index": graph_conv.last_edge_index,
+                    "hw": graph_conv.last_hw,
+                    "k": graph_conv.k,
+                    "dilation": graph_conv.d,
+                }
+            )
+        return graphs
+
     def forward(self, x):
         x = self.stem(x) + self.pos_embed
         for block in self.backbone:
