@@ -37,6 +37,8 @@ class GATLightningModule(L.LightningModule):
         num_features: int = 5,
         num_classes: int = 10,
         num_heads: list[int] = [2, 2, 2],
+        hidden_dims: list[int] = [32, 64, 64],
+        dropout: float = 0.0,
         lr: float = 1e-3,
         weight_decay: float = 0.0,
         warmup_epochs: int = 5,
@@ -48,6 +50,8 @@ class GATLightningModule(L.LightningModule):
             num_features=num_features,
             num_classes=num_classes,
             num_heads=list(num_heads),
+            hidden_dims=list(hidden_dims),
+            dropout=dropout,
         )
 
     def forward(self, h, adj, src, tgt, Msrc, Mtgt, Mgraph):

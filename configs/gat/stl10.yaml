@@ -1,8 +1,10 @@
-# GAT superpixel on STL-10 — inherits default.yaml (TensorBoard logger, 100 epochs).
+# GAT superpixel on STL-10 — scaled up from MNIST baseline.
 # STL-10: 10 classes, 96×96 RGB → 5 node features (rgb + xy).
+# Scaling vs mnist.yaml: hidden_dims 32/64/64→128/256/256, heads 2→4,
+# desired_nodes 75→150, dropout 0→0.1, weight_decay 0→1e-4.
 
 trainer:
-  max_epochs: 100
+  max_epochs: 150
   logger:
     init_args:
       name: gat-stl10
@@ -12,17 +14,19 @@ model:
   init_args:
     num_features: 5
     num_classes: 10
-    num_heads: [2, 2, 2]
-    lr: 1.0e-3
-    weight_decay: 0.0
-    warmup_epochs: 5
-    max_epochs: 100
+    num_heads: [4, 4, 4]
+    hidden_dims: [128, 256, 256]
+    dropout: 0.1
+    lr: 5.0e-4
+    weight_decay: 1.0e-4
+    warmup_epochs: 10
+    max_epochs: 150
 
 data:
   class_path: vision_gnn.data.STL10SuperpixelDataModule
   init_args:
     data_dir: data/stl10
-    desired_nodes: 75
-    batch_size: 32
+    desired_nodes: 150
+    batch_size: 16
     num_workers: 4
     val_split: 0.1

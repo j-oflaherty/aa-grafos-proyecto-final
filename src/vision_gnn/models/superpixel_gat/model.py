@@ -111,13 +111,23 @@ class GATLayerMultiHead(nn.Module):
 
 class GAT_MNIST(nn.Module):
 
-    def __init__(self, num_features, num_classes, num_heads=[2, 2, 2]):
+    def __init__(
+        self,
+        num_features,
+        num_classes,
+        num_heads=[2, 2, 2],
+        hidden_dims=[32, 64, 64],
+        dropout=0.0,
+    ):
         super().__init__()
+        assert len(num_heads) == len(hidden_dims), "num_heads and hidden_dims must have the same length"
 
-        self.layer_heads = [1] + num_heads
-        self.GAT_layer_sizes = [num_features, 32, 64, 64]
-        self.MLP_layer_sizes = [self.layer_heads[-1] * self.GAT_layer_sizes[-1], 32, num_classes]
+        self.layer_heads = [1] + list(num_heads)
+        self.GAT_layer_sizes = [num_features] + list(hidden_dims)
+        mlp_in = self.layer_heads[-1] * self.GAT_layer_sizes[-1]
+        self.MLP_layer_sizes = [mlp_in, mlp_in // 2, num_classes]
         self.MLP_acts = [F.relu, lambda x: x]
+        self.dropout = dropout
 
         self.GAT_layers = nn.ModuleList(
             [
@@ -140,6 +150,8 @@ class GAT_MNIST(nn.Module):
     def forward(self, x, adj, src, tgt, Msrc, Mtgt, Mgraph):
         for l in self.GAT_layers:
             x = l(x, adj, src, tgt, Msrc, Mtgt)
+            if self.dropout > 0.0:
+                x = F.dropout(x, p=self.dropout, training=self.training)
         x = torch.mm(Mgraph.t(), x)
         for layer, act in zip(self.MLP_layers, self.MLP_acts):
             x = act(layer(x))
