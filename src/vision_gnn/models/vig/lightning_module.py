@@ -133,7 +133,7 @@ class VigLightningModule(L.LightningModule):
         loss = F.cross_entropy(
             logits,
             labels,
-            label_smoothing=self.hparams.label_smoothing,
+            label_smoothing=self.hparams.label_smoothing if stage == "train" else 0.0,
         )
 
         # Mixup / CutMix yield soft (float) labels — use argmax for accuracy.
