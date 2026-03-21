@@ -15,8 +15,11 @@ vig-train fit --config configs/resnet/mnist.yaml --data.batch_size 128
 vig-train fit --config configs/resnet/mnist.yaml --ckpt_path checkpoints/last.ckpt
 """
 
+import torch
 import lightning as L
 from lightning.pytorch.cli import LightningCLI
+
+torch.set_float32_matmul_precision("high")
 
 _SUBCOMMANDS = {"fit", "validate", "test", "predict"}
 
