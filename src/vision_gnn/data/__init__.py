@@ -1,3 +1,4 @@
+from .augmentation import AugmentationConfig
 from .mnist import MNISTDataModule
 from .imagenet import ImageNetDataModule
 from .stl10 import STL10DataModule
@@ -6,6 +7,7 @@ from .mnist_superpixel import MNISTSuperpixelDataModule
 from .stl10_superpixel import STL10SuperpixelDataModule
 
 __all__ = [
+    "AugmentationConfig",
     "MNISTDataModule",
     "ImageNetDataModule",
     "STL10DataModule",

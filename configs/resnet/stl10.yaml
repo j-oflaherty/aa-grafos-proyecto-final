@@ -1,19 +1,19 @@
-# ResNet baseline on STL-10 — inherits default.yaml (TensorBoard logger, 100 epochs).
+# ResNet-18 baseline on STL-10 — inherits default.yaml (TensorBoard logger, 100 epochs).
 # STL-10: 10 classes, 96×96 RGB, 5 000 train / 8 000 test images.
-# Images are resized to 224×224 to match the ImageNet-style backbone.
+# Images are resized to 224×224 to match the ImageNet-pretrained backbone input size.
+# ResNet-18: ~11.2 M params, trained from scratch (weights=None).
 
 trainer:
   max_epochs: 100
   logger:
     init_args:
-      name: resnet-stl10
+      name: resnet18-stl10
 
 model:
   class_path: vision_gnn.models.resnet.ResNetLightningModule
   init_args:
+    model_name: resnet18  # torchvision ResNet-18, trained from scratch (~11.2 M params)
     num_classes: 10
-    hidden_dim: 40  # stem output channels; stages: 40 → 40, 80, 160, 320 (~4.37 M params)
-    num_layers: 4   # 4 residual stages
     warmup_epochs: 5
     max_epochs: 100
 
@@ -24,3 +24,17 @@ data:
     batch_size: 64
     num_workers: 4
     val_split: 0.1
+    augmentation:
+      random_resized_crop: true
+      color_jitter: true
+      color_jitter_brightness: 0.4
+      color_jitter_contrast: 0.4
+      color_jitter_saturation: 0.4
+      color_jitter_hue: 0.1
+      rand_augment: true
+      rand_augment_num_ops: 2
+      rand_augment_magnitude: 9
+      mixup_alpha: 0.8
+      cutmix_alpha: 1.0
+      random_erasing_prob: 0.25
+      repeated_augment: 3

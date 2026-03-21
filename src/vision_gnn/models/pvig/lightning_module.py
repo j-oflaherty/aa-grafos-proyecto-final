@@ -116,16 +116,19 @@ class PVigLightningModule(L.LightningModule):
         logits = self(images)
         loss = F.cross_entropy(logits, labels)
 
+        # Mixup / CutMix yield soft (float) labels — use argmax for accuracy.
+        hard_labels = labels.argmax(1) if labels.is_floating_point() else labels
+
         top1 = accuracy(
             logits,
-            labels,
+            hard_labels,
             task="multiclass",
             num_classes=self.hparams.num_classes,
             top_k=1,
         )
         top5 = accuracy(
             logits,
-            labels,
+            hard_labels,
             task="multiclass",
             num_classes=self.hparams.num_classes,
             top_k=5,

@@ -1,13 +1,47 @@
 import lightning as L
 import torch
 import torch.nn.functional as F
+import torchvision.models as tvm
 from torchmetrics.functional import accuracy
 
 from .resnet import MiniResNet
 
+# torchvision ResNet variants supported via model_name
+_TORCHVISION_RESNETS = {
+    "resnet18": tvm.resnet18,
+    "resnet34": tvm.resnet34,
+    "resnet50": tvm.resnet50,
+    "resnet101": tvm.resnet101,
+    "resnet152": tvm.resnet152,
+}
+
+
+def _build_model(
+    model_name: str,
+    num_classes: int,
+    in_channels: int,
+    hidden_dim: int,
+    num_layers: int,
+) -> torch.nn.Module:
+    if model_name == "mini":
+        return MiniResNet(
+            num_classes=num_classes,
+            in_channels=in_channels,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+        )
+    if model_name in _TORCHVISION_RESNETS:
+        net = _TORCHVISION_RESNETS[model_name](weights=None)
+        net.fc = torch.nn.Linear(net.fc.in_features, num_classes)
+        return net
+    raise ValueError(
+        f"Unknown model_name '{model_name}'. "
+        f"Choose 'mini' or one of {sorted(_TORCHVISION_RESNETS)}."
+    )
+
 
 class ResNetLightningModule(L.LightningModule):
-    """PyTorch Lightning wrapper for the small ResNet baseline.
+    """PyTorch Lightning wrapper for ResNet backbones.
 
     Datamodule contract
     -------------------
@@ -15,13 +49,25 @@ class ResNetLightningModule(L.LightningModule):
     - ``images``: ``Tensor[B, 3, 224, 224]`` — RGB, float32.
     - ``labels``: ``Tensor[B]`` — integer class indices.
 
-    Compatible with the same ``MNISTDataModule`` used for ViG experiments.
+    Model selection via ``model_name``
+    -----------------------------------
+    - ``'mini'``      — MiniResNet (custom lightweight backbone, ~701 k params at defaults).
+                        Uses ``hidden_dim`` and ``num_layers`` to control width/depth.
+    - ``'resnet18'``  — torchvision ResNet-18  (~11.2 M params)
+    - ``'resnet34'``  — torchvision ResNet-34  (~21.3 M params)
+    - ``'resnet50'``  — torchvision ResNet-50  (~25.6 M params)
+    - ``'resnet101'`` — torchvision ResNet-101 (~44.5 M params)
+    - ``'resnet152'`` — torchvision ResNet-152 (~60.2 M params)
+
+    All torchvision models are initialised with ``weights=None`` (train from scratch).
+    ``hidden_dim`` and ``num_layers`` are ignored for torchvision variants.
 
     Args:
-        num_classes:   Output classes (10 for MNIST, 2 for binary subsets).
-        in_channels:   Input channels (3 for RGB/grayscale-to-RGB).
-        hidden_dim:    Stem output channels; each stage doubles this.
-        num_layers:    Number of residual stages.
+        model_name:    Backbone to use (see above).
+        num_classes:   Output classes.
+        in_channels:   Input channels (only used by ``'mini'``).
+        hidden_dim:    MiniResNet stem channels (only used by ``'mini'``).
+        num_layers:    MiniResNet residual stages (only used by ``'mini'``).
         lr:            Peak learning rate for AdamW.
         weight_decay:  AdamW weight decay.
         warmup_epochs: Linear-warmup length (epochs).
@@ -30,6 +76,7 @@ class ResNetLightningModule(L.LightningModule):
 
     def __init__(
         self,
+        model_name: str = "resnet18",
         num_classes: int = 10,
         in_channels: int = 3,
         hidden_dim: int = 32,
@@ -41,12 +88,7 @@ class ResNetLightningModule(L.LightningModule):
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
-        self.model = MiniResNet(
-            num_classes=num_classes,
-            in_channels=in_channels,
-            hidden_dim=hidden_dim,
-            num_layers=num_layers,
-        )
+        self.model = _build_model(model_name, num_classes, in_channels, hidden_dim, num_layers)
 
     def forward(self, x):
         return self.model(x)
@@ -56,16 +98,17 @@ class ResNetLightningModule(L.LightningModule):
         logits = self(images)
         loss = F.cross_entropy(logits, labels)
 
+        # Mixup / CutMix yield soft (float) labels — use argmax for accuracy.
+        hard_labels = labels.argmax(1) if labels.is_floating_point() else labels
+
         top1 = accuracy(
-            logits,
-            labels,
+            logits, hard_labels,
             task="multiclass",
             num_classes=self.hparams.num_classes,
             top_k=1,
         )
         top5 = accuracy(
-            logits,
-            labels,
+            logits, hard_labels,
             task="multiclass",
             num_classes=self.hparams.num_classes,
             top_k=min(5, self.hparams.num_classes),

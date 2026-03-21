@@ -7,18 +7,34 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from torchvision.datasets import MNIST
 
+from .augmentation import (
+    AugmentationConfig,
+    MixupCutmixCollate,
+    RepeatAugSampler,
+    build_post_tensor_transforms,
+    build_pre_tensor_transforms,
+    build_spatial_transform,
+)
+
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
-_train_transform = transforms.Compose(
-    [
-        transforms.Resize(224),
-        transforms.Grayscale(num_output_channels=3),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-    ]
-)
+
+def _make_train_transform(aug: AugmentationConfig | None) -> transforms.Compose:
+    pre = build_pre_tensor_transforms(aug) if aug else []
+    post = build_post_tensor_transforms(aug) if aug else []
+    return transforms.Compose(
+        [
+            build_spatial_transform(aug, size=224),
+            transforms.Grayscale(num_output_channels=3),
+            transforms.RandomHorizontalFlip(),
+            *pre,
+            transforms.ToTensor(),
+            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+            *post,
+        ]
+    )
+
 
 _val_transform = transforms.Compose(
     [
@@ -55,6 +71,7 @@ class MNISTDataModule(LightningDataModule):
         num_workers: int = 4,
         val_split: float = 0.1,
         classes: list[int] | None = None,
+        augmentation: AugmentationConfig | None = None,
     ) -> None:
         super().__init__()
         self.data_dir = data_dir
@@ -63,12 +80,15 @@ class MNISTDataModule(LightningDataModule):
         self.val_split = val_split
         self.classes = sorted(classes) if classes is not None else list(range(10))
         self.num_classes = len(self.classes)
+        self.augmentation = augmentation
 
     def setup(self, stage: str | None = None) -> None:
+        train_tf = _make_train_transform(self.augmentation)
+
         if stage in ("fit", None):
             # Use separate dataset objects so transforms don't bleed across splits.
             train_full = _FilteredMNIST(
-                MNIST(self.data_dir, train=True, download=True, transform=_train_transform),
+                MNIST(self.data_dir, train=True, download=True, transform=train_tf),
                 self.classes,
             )
             val_full = _FilteredMNIST(
@@ -88,11 +108,32 @@ class MNISTDataModule(LightningDataModule):
             )
 
     def train_dataloader(self) -> DataLoader:
+        aug = self.augmentation
+        use_repeat = aug is not None and aug.repeated_augment > 1
+        use_mix = aug is not None and (aug.mixup_alpha > 0 or aug.cutmix_alpha > 0)
+
+        sampler = (
+            RepeatAugSampler(self.train_ds, num_repeats=aug.repeated_augment)
+            if use_repeat
+            else None
+        )
+        collate_fn = (
+            MixupCutmixCollate(
+                num_classes=self.num_classes,
+                mixup_alpha=aug.mixup_alpha,
+                cutmix_alpha=aug.cutmix_alpha,
+            )
+            if use_mix
+            else None
+        )
+
         return DataLoader(
             self.train_ds,
             batch_size=self.batch_size,
-            shuffle=True,
+            shuffle=(sampler is None),
+            sampler=sampler,
             num_workers=self.num_workers,
+            collate_fn=collate_fn,
         )
 
     def val_dataloader(self) -> DataLoader:

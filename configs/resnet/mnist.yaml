@@ -12,9 +12,10 @@ trainer:
 model:
   class_path: vision_gnn.models.resnet.ResNetLightningModule
   init_args:
-    num_classes: 10 # must match the number of entries in data.init_args.classes (or 10 if unset)
-    hidden_dim: 32  # stem output channels; each stage doubles (32 → 32, 64, 128 for num_layers=3)
-    num_layers: 3   # number of residual stages; increase for a deeper model
+    model_name: mini  # lightweight custom backbone (~701 k params at defaults)
+    num_classes: 10   # must match the number of entries in data.init_args.classes (or 10 if unset)
+    hidden_dim: 32    # stem output channels; each stage doubles (32 → 32, 64, 128 for num_layers=3)
+    num_layers: 3     # number of residual stages; increase for a deeper model
     warmup_epochs: 5
     max_epochs: 100
 

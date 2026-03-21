@@ -1,0 +1,25 @@
+# ViG-S on ImageNet — inherits default.yaml (TensorBoard logger, 100 epochs).
+# ViG-S: 320 filters, 16 blocks — 22.7 M params, 4.5 B FLOPs.
+# ImageNet: 1000 classes, 224×224 RGB.
+
+trainer:
+  max_epochs: 300
+  logger:
+    init_args:
+      name: vig-s-imagenet
+
+model:
+  class_path: vision_gnn.models.vig.VigLightningModule
+  init_args:
+    num_classes: 1000
+    n_filters: 320
+    n_blocks: 16
+    warmup_epochs: 20
+    max_epochs: 300
+
+data:
+  class_path: vision_gnn.data.imagenet.ImageNetDataModule
+  init_args:
+    data_dir: /path/to/imagenet   # ← override with --data.data_dir
+    batch_size: 64
+    num_workers: 8
