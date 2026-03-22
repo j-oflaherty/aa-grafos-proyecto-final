@@ -1,0 +1,44 @@
+# PyramidViG-Ti on ImageNet-100 — inherits default.yaml (TensorBoard logger, 100 epochs).
+# PViG-Ti: blocks=[2,2,6,2], channels=[48,96,240,384] — ~10.7 M params.
+# ImageNet-100: 100-class subset of ImageNet, 224×224 RGB.
+# Point data_dir at a folder with the standard ImageNet layout filtered to 100 classes.
+
+trainer:
+  max_epochs: 300
+  logger:
+    init_args:
+      name: pvig-ti-imagenet100
+
+model:
+  class_path: vision_gnn.models.pvig.PVigLightningModule
+  init_args:
+    num_classes: 100
+    blocks: [2, 2, 6, 2]
+    channels: [48, 96, 240, 384]
+    k: 9
+    conv: mr
+    act: gelu
+    drop_path_rate: 0.1
+    dropout: 0.1
+    in_channels: 3
+    lr: 2.0e-3
+    weight_decay: 0.05
+    warmup_epochs: 20
+    max_epochs: 300
+    ema_decay: 0.9999
+    label_smoothing: 0.1
+
+data:
+  class_path: vision_gnn.data.imagenet.ImageNetDataModule
+  init_args:
+    data_dir: /workspace/imagenet # ← override with --data.data_dir
+    batch_size: 256
+    num_workers: 8
+    augmentation:
+      class_path: vision_gnn.data.augmentation.AugmentationConfig
+      init_args:
+        rand_augment: true
+        repeated_augment: 3
+        mixup_alpha: 0.8
+        cutmix_alpha: 1.0
+        random_erasing_prob: 0.25
