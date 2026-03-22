@@ -135,9 +135,9 @@ class PyramidDeepGCN(nn.Module):
                 HW = HW // 4  # halve H and W each → /4 tokens
 
             reduce = self._REDUCE_RATIOS[stage]
-            dilation = min(idx // 4 + 1, max_dilation)
 
             for _ in range(n_stage_blocks):
+                dilation = min(idx // 4 + 1, max_dilation)
                 self.backbone.append(
                     Seq(
                         Grapher(
@@ -251,10 +251,10 @@ class PyramidDeepGCNSeg(nn.Module):
                 HW = HW // 4
 
             reduce = self._REDUCE_RATIOS[stage]
-            dilation = min(idx // 4 + 1, max_dilation)
             stage_blocks = nn.ModuleList()
 
             for _ in range(n_stage_blocks):
+                dilation = min(idx // 4 + 1, max_dilation)
                 stage_blocks.append(
                     Seq(
                         Grapher(
