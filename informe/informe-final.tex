@@ -4,6 +4,8 @@
 % --------------------------------------------------------------------------
 \documentclass{article}
 \usepackage{spconfa4,amsmath,graphicx,hyperref}
+\usepackage{amsmath,amssymb,amsthm,amsfonts}
+\usepackage{subcaption}
 
 % Title.
 % ------
@@ -76,13 +78,13 @@ La base de datos STL10 \cite{pmlr-v15-coates11a} contiene un conjunto de imágen
     \label{fig:stl10_examples}
 \end{figure}
 
-\subsubsection{Imagenet 100 RECORDAR SACAR ESTO SI LA BASE DE DATOS NO SE USAAAAAAAAAA!!!}
-La base de datos Imagenet 100 \cite{ILSVRC15} es una versión reducida del conjunto de datos Imagenet, que contiene 100 clases de objetos con un total de 130,000 imágenes. Cada imagen es de alta resolución y a color, y el objetivo es clasificar cada imagen en una de las 100 clases correspondientes. Imagenet 100 es un conjunto de datos muy desafiante debido a la gran variedad de objetos y a la complejidad visual presente en las imágenes.
-% #TODO: agregar grilla de imágenes de referencia.
+% \subsubsection{Imagenet 100 RECORDAR SACAR ESTO SI LA BASE DE DATOS NO SE USAAAAAAAAAA!!!}
+% La base de datos Imagenet 100 \cite{ILSVRC15} es una versión reducida del conjunto de datos Imagenet, que contiene 100 clases de objetos con un total de 130,000 imágenes. Cada imagen es de alta resolución y a color, y el objetivo es clasificar cada imagen en una de las 100 clases correspondientes. Imagenet 100 es un conjunto de datos muy desafiante debido a la gran variedad de objetos y a la complejidad visual presente en las imágenes.
+% % #TODO: agregar grilla de imágenes de referencia.
 
-\subsubsection{Pascal VOC0712}
-La base de datos Pascal VOC0712 \cite{everingham2010pascal} es un conjunto de datos utilizado principalmente para tareas de segmentación semántica y detección de objetos, pero también se puede adaptar para clasificación. Contiene imágenes a color con una resolución variable, que muestran 20 clases de objetos comunes en escenas cotidianas, como personas, animales, vehículos y muebles. El conjunto de datos se divide en dos partes: VOC2007 con 9963 imágenes y VOC2012 con 11540 imágenes.
-% #TODO: agregar grilla de imágenes de referencia.
+% \subsubsection{Pascal VOC0712}
+% La base de datos Pascal VOC0712 \cite{everingham2010pascal} es un conjunto de datos utilizado principalmente para tareas de segmentación semántica y detección de objetos, pero también se puede adaptar para clasificación. Contiene imágenes a color con una resolución variable, que muestran 20 clases de objetos comunes en escenas cotidianas, como personas, animales, vehículos y muebles. El conjunto de datos se divide en dos partes: VOC2007 con 9963 imágenes y VOC2012 con 11540 imágenes.
+% % #TODO: agregar grilla de imágenes de referencia.
 
 \subsection{Superpixel GAT}
 Se define un superpixel como un grupo de píxeles contiguos que comparten características visuales similares (como color, textura o intensidad). La segmentación en superpíxeles permite reducir la dimensión de la imagen al agrupar píxeles en regiones coherentes, lo que facilita el análisis y la clasificación. Particularmente, se utiliza el método SLIC (Simple Linear Iterative Clustering) \cite{6205760} para segmentar la imagen en superpíxeles. Este método agrupa píxeles en regiones de tamaño similar basándose en la similitud de color y proximidad espacial. El número de superpíxeles se puede ajustar según el nivel de detalle deseado, y cada superpixel se representa mediante un vector de características que puede incluir información como el color promedio, la textura o la forma.
@@ -142,16 +144,194 @@ En el caso particular de superpíxeles, estos pesos de atención permiten que el
 
 \subsection{VisionGNN}
 
-\subsubsection{Red isotrópica}
+VisionGNN~\cite{han2022vision} define una nueva arquitectura, jugando con la creación del grafo a medida que la imagen atraviesa el modelo. La idea es simple: dividir la imagen en patches y asignar aristas en base a un KNN sobre los pixeles. Este approach, a diferencia del antes mencionado, no utiliza la información espacial de la imagen, sino que hace las conexiones del grafo puramente basado en las features de cada patch.
 
-\subsubsection{Red piramidal}
+\begin{figure}[htb]
+    \includegraphics[width=0.45\textwidth]{images/vig.pdf}
+    \centering
+    \caption{diagrama de la arquitectura de VisionGNN.}
+    \label{fig:vision_gnn_block}
+\end{figure}
+
+En la Figura \ref{fig:vision_gnn_block} se puede ver un diagrama ilustrativo de la arquitectura,
+donde encuadrado en naranja se encuentra el \emph{ViGBlock}.
+
+\subsection{ViG Block}
+
+Dada una imagen de tamaño $H \times W \times C$, se divide en $N$ patches. Cada patch pasa a
+ser un vector de features $x_i \in \mathbb{R}^{D}$, obteniendo $\boldsymbol{X} = [x_1, x_2, \dots, x_i]$ con $i = 1, 2, \dots, N$. Podemos pensar en estas features como un set de
+nodos no ordenados $\mathcal{V} = \{v_1, v_2, \dots, v_i\}$. Para cada $v_i$, vamos a buscar
+los $K$ vecinos más cercanos para definir $\mathcal{N}(v_i)$ y agregamos una arista $e_{ij}$
+dirigida de $v_j$ a $v_i$. Definimos este proceso de construcción del grafo como $G(\boldsymbol{X})$.
+
+Para definir el bloque \emph{ViG}, partimos de $\boldsymbol{X} \in \mathbb{R}^{N \times D}$.
+Dado el grafo construido $G(\boldsymbol{X})$, vamos a procesarlo usando convolución de grafos.
+La convolución a utilizar es un hiperparámetro que evalúan en el paper. Para evitar el
+problema de oversmoothing, se agrega una capa lineal a la entrada y a la salida de la convolución,
+junto con una activación no lineal a salida de la convolución. Este primer sub-bloque se lo
+apoda \emph{ Grapher }, y tiene la siguiente forma:
+\begin{equation}
+    Y = \sigma(\mathrm{GraphConv}(X W_{in})) W_{out} + X,
+\end{equation}
+donde $X$ es el input, $W_{in}$ y $W_{out}$ son matrices de pesos entrenables, $\mathrm{GraphConv}$ representa la capa de convolución sobre el grafo construido, y $\sigma$ es la función de activación no lineal.
+
+Luego del módulo de \emph{Grapher}, se aplica una FFN (Feed-Forward Network). Por lo tanto, el bloque \emph{ViG} tiene la siguiente forma:
+\begin{equation}
+    \begin{array}{ccl}
+        Y & = & Grapher(X)            \\
+        Z & = & \sigma(Y W_1)W_2 + Y,
+    \end{array}
+\end{equation}
+donde $X$ es la entrada al bloque y $Z$ es la salida.
+
+\subsubsection{Arquitecturas}
+
+En el paper se evalúan dos arquitecturas diferentes: la \emph{Red piramidal} y la \emph{Red isotrópica}.
+
+La red isotrópica es una red donde el cuerpo principal tiene features de igual tamaño a través
+de toda la red. En el paper se definen 3 versiones, en este proyecto trabajaremos solo con la
+versión tiny, de alrededor de 7M de parámetros, y con una version nano (definido por nosotros) para mnist con 50k parámetros.
+
+La red piramidal considera la características multi-escala de las imágenes, por lo que va extrayendo
+features gradualmente más finas a medida que avanza por la red. En el paper se definen 4 versiones, pero al igual que con la isotrópica, trabajaremos solo con la versión tiny. En la Tabla \ref{tab:pyramidvig_ti_arch} se resume la configuración de cada etapa del modelo.
+
+\begin{table}[htb]
+    \centering
+    \begin{tabular}{c|c|c}
+        Etapa   & Resolución                       & Bloques           \\
+        \hline
+        Stage 1 & $\frac{H}{4}\times\frac{W}{4}$   & $(D=48)\times 2$  \\
+        Stage 2 & $\frac{H}{8}\times\frac{W}{8}$   & $(D=96)\times 2$  \\
+        Stage 3 & $\frac{H}{16}\times\frac{W}{16}$ & $(D=240)\times 6$ \\
+        Stage 4 & $\frac{H}{32}\times\frac{W}{32}$ & $(D=384)\times 2$ \\
+    \end{tabular}
+    \caption{Resumen compacto de PyramidViG-Ti (\(E=4,\ K=9\) en todas las etapas).}
+    \label{tab:pyramidvig_ti_arch}
+\end{table}
+
+Para las operaciones de downsampling se usa una capa de convolución, y al final se le agrega una capa de pooling y de MLP para la clasificación / segmentación.
+
 
 \section{Experimentos}
 \label{sec:experimentos}
-Para evaluar el desempeño de los modelos presentados, se realizaron entrenamientos y pruebas utilizando las bases de datos descritas en la sección \ref{subsec:datasets}. Las pruebas se llevaron a cabo basadas en el código de github de cada trabajo \footnote{\href{https://github.com/jichengyuan/Vision_GNN}{https://github.com/jichengyuan/Vision\_GNN}} \footnote{\href{https://github.com/machine-reasoning-ufrgs/spixel-gat}{https://github.com/machine-reasoning-ufrgs/spixel-gat}}. Además, se entrenó una Resnet-18 \cite{resnet} como baseline para comparar el desempeño de los modelos basados en grafos con una arquitectura de red neuronal para clasificación de imágenes tradicional.
+Para evaluar el desempeño de los modelos presentados, se realizaron entrenamientos y pruebas con las 2 bases de datos descritas en la sección \ref{subsec:datasets}. Las pruebas se llevaron a cabo adaptando el código de github de cada trabajo \footnote{\href{https://github.com/jichengyuan/Vision_GNN}{https://github.com/jichengyuan/Vision\_GNN}} \footnote{\href{https://github.com/machine-reasoning-ufrgs/spixel-gat}{https://github.com/machine-reasoning-ufrgs/spixel-gat}}. En cada base, se busco que el modelos tengan tamaño de orden similar, por lo que se hicieron alteraciones de los parámetros en algunos casos.
 
-\section{Resultados}
-\label{sec:resultados}
+\subsection{MNIST}
+
+Para el caso de MNIST, solo superpixel entrena y presenta resultados en ese dataset. Tomando este modelo como tamaño objetivo, se ajustaron
+los parámetros de la resnet, y del ViG isotrópico (el piramidal no pudo ser reducido a una cantidad de parámetros similar). Los resultados son los presentados en la Tabla \ref{tab:mnist_results}.
+
+\begin{table}[htb]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        \textbf{Modelo} & \textbf{Parámetros} & \textbf{Accuracy} & \textbf{Loss} \\
+        \hline
+        Resnet-nano     & 45.1k               & 98.62\%           & 0.27          \\
+        Superpixel      & 59.5k               & 98.23\%           & 0.053         \\
+        ViG-Nano        & 50.9k               & 98.27\%           & 0.056         \\
+        \hline
+    \end{tabular}
+    \caption{Resultados de los modelos en MNIST.}
+    \label{tab:mnist_results}
+\end{table}
+
+\begin{figure}[htb]
+    \centering
+    \begin{subfigure}{0.98\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/training_curves_step.pdf}
+        \caption{Exactitud Top-1 en función de los pasos de entrenamiento (eje y: exactitud Top-1).}
+        \label{fig:training_curves_step}
+    \end{subfigure}
+
+    \vspace{0.7em}
+
+    \begin{subfigure}{0.98\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/training_curves_relative_time.pdf}
+        \caption{Exactitud Top-1 en función del tiempo relativo transcurrido (eje y: exactitud Top-1).}
+        \label{fig:training_curves_relative_time}
+    \end{subfigure}
+
+    \caption{Comparación de exactitud Top-1 de los modelos en MNIST.}
+    \label{fig:training_curves_mnist}
+\end{figure}
+
+De estos resultados, junto con las curvas de entremiento presentadas en la Figura \ref{fig:training_curves_mnist}, sacamos las siguientes conclusiones:
+\begin{itemize}
+    \item Pudimos replicar el desempeño reportado por el paper Superpixel-GAT en MNist.
+    \item ViG alcanza un desempeño comparable a la resnet un tiempo similar de entrenamiento, aunque cada epoch tiene más duración por la complejidad computacional del modelo.
+    \item El modelo de superpixel es el que entrena más lento.
+    \item El modelo de superpixel es el que presenta una curva de aprendizaje más suave, mientras que ViG y Resnet alcanzan rápidamente el 90\% suben desde allí.
+\end{itemize}
+
+En resumen, en este pequeño experimento pudimos validar que los modelos efectivamente entrenan y alcanzan rendimientos similares a los reportados en los papers.
+
+\subsection{STL10}
+
+Aunque ninguno de los modelos reporto desempeño en STL10, tomamos este dataset como un proxy a imagenet, dado que es una versión más pequeña. En este dataset,
+decidimos utilizar las arquitecturas provistas en los papers de Vision GNN, en su versión tiny, y compararlo con la resnet18.
+
+\begin{table}[htb]
+    \centering
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        \textbf{Modelo} & \textbf{Parámetros}                                                                           & \textbf{Acc. Top-1} & \textbf{Loss} \\
+        \hline
+        ResNet18        & 11.2M                                                                                         & 85.60\%             & 0.5755        \\
+        ViG-Tiny        & 6.2M                                                                                          & 88.06\%             & 0.5585        \\
+        PyramidViG      & 11.7M\footnote{Son 9.7M entrenables, el resto son fijos o paramétros de batch normalization.} & 89.71\%             & 0.4910        \\
+        Superpixel GAT  & 3.7M                                                                                          & 52.20\%             & 1.5293        \\
+        \hline
+    \end{tabular}
+    \caption{Resultados de los modelos en STL10.}
+    \label{tab:stl10_results}
+\end{table}
+
+En la tabla \ref{tab:stl10_results} se presentan los modelos entrenados y sus resultados. Una primera aclaración es que
+el modelo de superpixel se escalo notablemente respecto a su versión inicial, pero al no contar con un diseño para escalarlo
+no se alcanzo el mismo tamaño que el resto. Otro comentario para hacer es que el entrenamiento de la resnet es una versión muy simple,
+contando solo con augmentations básicas y sin ningún tipo de regularización, mientras que el entrenamiento de los modelos de Vision GNN
+sigue los parametros y tecnicas utilizadas en el paper para imagenet.
+
+\begin{figure}[htb]
+    \centering
+    \begin{subfigure}{0.98\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/training_curves_step_stl10.pdf}
+        \caption{Exactitud Top-1 en función de los pasos de entrenamiento (eje y: exactitud Top-1).}
+        \label{fig:training_curves_step_stl10}
+    \end{subfigure}
+
+    \vspace{0.7em}
+
+    \begin{subfigure}{0.98\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/training_curves_relative_time_stl10.pdf}
+        \caption{Exactitud Top-1 en función del tiempo relativo transcurrido (eje y: exactitud Top-1).}
+        \label{fig:training_curves_relative_time_stl10}
+    \end{subfigure}
+
+    \caption{Comparación de exactitud Top-1 de los modelos en STL10.}
+    \label{fig:training_curves_stl10}
+\end{figure}
+
+En la figura \ref{fig:training_curves_stl10} se presentan las curvas de entrenamiento de los modelos en STL10. La figura \ref{fig:training_curves_step_stl10} muestra
+la eolución de la accuracy en función de los pasos de entrenamiento, mientras que la figura \ref{fig:training_curves_relative_time_stl10} muestra la evolución de la accuracy en función del tiempo relativo transcurrido. Esto permite comparar tanto la velocidad de entrenamiento como el rendimiento de los modelos.
+
+Una primera observación clara es que el entrenamiento de la resnet es mucho más rápida que en los modelos basados en GNN. Pese a realizar una cantidad de steps
+similar, la duración del ciclo de entrenamiento es mucho menor y alcanza un rendimiento similar a la ViG isotrópica. Incluso en el caso de superpixel, este último
+tiene menos steps de entrenamiento y demora más que la resnet.
+
+Siguiendo la discusión sobre Superpixel, este tuvo un mal rendimiento. En el paper original trabajan principalmente con datasets en escala de grises y con versiones
+pequeñas del modelo, por lo que no había instrucciones claras de como escalar el modelo para datasets a color más difícil. El mal desempeño se puede deber tanto a
+limitaciones de la arquitectura en sí, como a decisiones incorrectas a la hora de escalar el modelo a un tamaño competitivo.
+
+Los modelos ViG y PyramidViG tuvieron muy buenos desempeños, especialmente la PyramidViG, aunque entrenaron durante mucho más tiempo y steps que la resnet. Esto es un
+buen indicador para confiar en los resultados presentados en el paper. En cuanto a la duración alargada del entrenamiento, además de tener una inferencia más costosa
+en cuanto a FLOPs, ambos modelos son entrenados con EMA, por lo que tienen una curva de aprendizaje más suave y regularizada.
+
 
 \section{Conclusiones}
 \label{sec:conclusiones}
@@ -168,4 +348,23 @@ En esta sección se listan las referencias bibliográficas del trabajo.
 \bibliographystyle{IEEEbib}
 \bibliography{refs}
 
+\section{Anexos}
+
+\subsection{Configuraciones de entrenamiento}
+
+Para los experimentos en STL10 se utilizaron configuraciones especificas por modelo, manteniendo un esquema comun de entrenamiento en PyTorch Lightning: seleccion del mejor checkpoint por \texttt{val/loss} y \textit{early stopping} con paciencia de 10 epocas.
+
+\begin{itemize}
+    \item \textbf{ResNet18 (\texttt{configs/resnet/stl10.yaml}).}
+          Se entreno durante 100 epocas con \texttt{batch\_size=64}. El optimizador fue AdamW (definido en el \textit{LightningModule}) con \texttt{lr=1e-3}, \texttt{weight\_decay=0.05}, \textit{warmup} lineal de 5 epocas y decaimiento coseno posterior. En datos se uso una receta fuerte de augmentacion: \texttt{RandomResizedCrop}, \texttt{ColorJitter}, \texttt{RandAugment}, \texttt{Mixup} (\(\alpha=0.8\)), \texttt{CutMix} (\(\alpha=1.0\)), \texttt{Random Erasing} (\(p=0.25\)) y \textit{repeated augmentation} (3 repeticiones).
+
+    \item \textbf{ViG-Ti (\texttt{configs/vig/stl10-tiny.yaml}).}
+          Se entreno por 300 epocas con \texttt{batch\_size=64}, AdamW con \texttt{lr=2e-3} y \texttt{weight\_decay=0.05}. Se aplico \textit{warmup} de 20 epocas seguido de scheduler coseno, junto con \texttt{drop\_path\_rate=0.1}, \texttt{label\_smoothing=0.1} y EMA de pesos (\texttt{ema\_decay=0.9993}). La augmentacion siguio la receta de Vision GNN: \texttt{RandAugment}, \texttt{Mixup}, \texttt{CutMix}, \texttt{Random Erasing} y \textit{repeated augmentation}.
+
+    \item \textbf{PyramidViG-Ti (\texttt{configs/pvig/stl10\_ti.yaml}).}
+          Se entreno por 300 epocas con \texttt{batch\_size=32}. El esquema de optimizacion fue AdamW con \texttt{lr=2e-3}, \texttt{weight\_decay=0.05}, \textit{warmup} de 20 epocas y decaimiento coseno. Ademas se incluyeron \texttt{drop\_path\_rate=0.1}, \texttt{dropout=0.1}, \texttt{label\_smoothing=0.1} y EMA (\texttt{ema\_decay=0.9993}). Las tecnicas de augmentacion fueron equivalentes a ViG-Ti.
+
+    \item \textbf{Superpixel GAT (\texttt{configs/gat/stl10.yaml}).}
+          Se entreno durante 150 epocas con \texttt{batch\_size=16}, sobre grafos de superpixeles con \texttt{desired\_nodes=150}. Se uso AdamW con \texttt{lr=5e-4}, \texttt{weight\_decay=1e-4}, \textit{warmup} de 10 epocas y scheduler coseno. La arquitectura empleada fue de 3 capas GAT con \texttt{num\_heads=[4,4,4]}, \texttt{hidden\_dims=[128,256,256]} y \texttt{dropout=0.1}.
+\end{itemize}
 \end{document}

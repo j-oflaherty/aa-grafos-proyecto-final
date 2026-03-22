@@ -1,0 +1,54 @@
+# Pyramid ViG Nano for semantic segmentation on PASCAL VOC 2012 (21 classes).
+# Backbone: pViG-Nano (blocks=[2,2,6,2], channels=[24,48,120,192]).
+# Channel ratio 1:2:5:8 preserved from the Ti/S design; ½ of Ti width.
+# Decoder:  FPN with fpn_channels=128 (½ of Ti).
+# Total params: ~2.7 M — sized for ~1 464 training images.
+# Input:    224×224 (backbone pos_embed is tied to this size).
+# Metric:   val/mIoU (higher is better).
+#
+# Usage:
+#   vig-train fit --config configs/default.yaml --config configs/pvig/voc_nano.yaml
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: pvig-nano-voc2012
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/mIoU
+        mode: max
+        save_top_k: 1
+        filename: best
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: val/mIoU
+        patience: 20
+        mode: max
+
+model:
+  class_path: vision_gnn.models.pvig.PVigSegLightningModule
+  init_args:
+    num_classes: 21
+    blocks: [2, 2, 6, 2]
+    channels: [24, 48, 120, 192]
+    k: 9
+    conv: mr
+    act: gelu
+    drop_path_rate: 0.05
+    dropout: 0.1
+    fpn_channels: 128
+    in_channels: 3
+    lr: 2.0e-4
+    weight_decay: 0.05
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.VOCSegmentationDataModule
+  init_args:
+    data_dir: data/VOC_dataset
+    batch_size: 8
+    num_workers: 4
+    train_split: train
