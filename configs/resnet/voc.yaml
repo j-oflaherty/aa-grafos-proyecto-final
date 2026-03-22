@@ -1,0 +1,44 @@
+# ResNet-18 for semantic segmentation on PASCAL VOC 2012 (21 classes).
+# Backbone: torchvision ResNet-18 (trained from scratch, weights=None).
+# Decoder:  FPN with fpn_channels=256.
+# Input:    224×224.
+# Metric:   val/mIoU (higher is better).
+#
+# Usage:
+#   vig-train fit --config configs/default.yaml --config configs/resnet/voc.yaml
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: resnet18-voc2012
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/mIoU
+        mode: max
+        save_top_k: 1
+        filename: best
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: val/mIoU
+        patience: 15
+        mode: max
+
+model:
+  class_path: vision_gnn.models.resnet.ResNetSegLightningModule
+  init_args:
+    num_classes: 21
+    fpn_channels: 256
+    dropout: 0.1
+    lr: 1.0e-4
+    weight_decay: 0.05
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.VOCSegmentationDataModule
+  init_args:
+    data_dir: data/VOC_dataset
+    batch_size: 16
+    num_workers: 4

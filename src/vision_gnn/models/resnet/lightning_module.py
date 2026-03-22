@@ -3,8 +3,9 @@ import torch
 import torch.nn.functional as F
 import torchvision.models as tvm
 from torchmetrics.functional import accuracy
+from torchmetrics.classification import MulticlassJaccardIndex
 
-from .resnet import MiniResNet
+from .resnet import MiniResNet, ResNet18Seg
 
 # torchvision ResNet variants supported via model_name
 _TORCHVISION_RESNETS = {
@@ -128,6 +129,125 @@ class ResNetLightningModule(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         self._shared_step(batch, "test")
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.hparams.lr,
+            weight_decay=self.hparams.weight_decay,
+        )
+
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=1e-4,
+            end_factor=1.0,
+            total_iters=self.hparams.warmup_epochs,
+        )
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=max(1, self.hparams.max_epochs - self.hparams.warmup_epochs),
+            eta_min=1e-6,
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup, cosine],
+            milestones=[self.hparams.warmup_epochs],
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"},
+        }
+
+
+class ResNetSegLightningModule(L.LightningModule):
+    """PyTorch Lightning wrapper for ResNet-18 semantic segmentation.
+
+    Datamodule contract
+    -------------------
+    Batches must be ``(images, masks)`` where:
+    - ``images``: ``Tensor[B, 3, 224, 224]`` — RGB, float32.
+    - ``masks``:  ``Tensor[B, 224, 224]`` — int64 class indices; 255 = ignore.
+
+    Args:
+        num_classes:   Segmentation classes (21 for VOC2012).
+        fpn_channels:  Uniform channel width inside the FPN (default 256).
+        dropout:       Spatial dropout rate in the FPN decoder.
+        lr:            Peak learning rate for AdamW.
+        weight_decay:  AdamW weight decay.
+        warmup_epochs: Linear-warmup length (epochs).
+        max_epochs:    Total training epochs (for cosine decay end).
+    """
+
+    def __init__(
+        self,
+        num_classes: int = 21,
+        fpn_channels: int = 256,
+        dropout: float = 0.1,
+        lr: float = 1e-4,
+        weight_decay: float = 0.05,
+        warmup_epochs: int = 5,
+        max_epochs: int = 100,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.model = ResNet18Seg(
+            num_classes=num_classes,
+            fpn_channels=fpn_channels,
+            dropout=dropout,
+        )
+
+        self.train_miou = MulticlassJaccardIndex(num_classes=num_classes, ignore_index=255)
+        self.val_miou = MulticlassJaccardIndex(num_classes=num_classes, ignore_index=255)
+
+    # ------------------------------------------------------------------
+    # Forward
+    # ------------------------------------------------------------------
+
+    def forward(self, x):
+        return self.model(x)
+
+    # ------------------------------------------------------------------
+    # Steps
+    # ------------------------------------------------------------------
+
+    def _shared_step(self, batch, stage: str):
+        images, masks = batch
+        logits = self.model(images)
+        loss = F.cross_entropy(logits, masks, ignore_index=255)
+
+        preds = logits.argmax(dim=1)
+        miou = self.train_miou if stage == "train" else self.val_miou
+        miou.update(preds, masks)
+
+        self.log(f"{stage}/loss", loss, on_step=(stage == "train"), on_epoch=True, prog_bar=True)
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        return self._shared_step(batch, "train")
+
+    def on_train_epoch_end(self):
+        self.log("train/mIoU", self.train_miou.compute(), prog_bar=True)
+        self.train_miou.reset()
+
+    def validation_step(self, batch, batch_idx):
+        self._shared_step(batch, "val")
+
+    def on_validation_epoch_end(self):
+        self.log("val/mIoU", self.val_miou.compute(), prog_bar=True)
+        self.val_miou.reset()
+
+    def test_step(self, batch, batch_idx):
+        self._shared_step(batch, "test")
+
+    def on_test_epoch_end(self):
+        self.log("test/mIoU", self.val_miou.compute())
+        self.val_miou.reset()
+
+    # ------------------------------------------------------------------
+    # Optimiser + scheduler
+    # ------------------------------------------------------------------
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(

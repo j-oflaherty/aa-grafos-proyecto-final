@@ -5,8 +5,9 @@ import torch
 import torch.nn.functional as F
 from timm.utils import ModelEma
 from torchmetrics.functional import accuracy
+from torchmetrics.classification import MulticlassJaccardIndex
 
-from .pvig import PyramidDeepGCN
+from .pvig import PyramidDeepGCN, PVigSeg
 
 
 class PVigLightningModule(L.LightningModule):
@@ -188,6 +189,172 @@ class PVigLightningModule(L.LightningModule):
             if self._ema is None:
                 self._ema = ModelEma(self.model, decay=self.hparams.ema_decay)
             self._ema.ema.load_state_dict(checkpoint["ema_state_dict"])
+
+    # ------------------------------------------------------------------
+    # Optimiser + scheduler
+    # ------------------------------------------------------------------
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(
+            self.parameters(),
+            lr=self.hparams.lr,
+            weight_decay=self.hparams.weight_decay,
+        )
+
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=1e-4,
+            end_factor=1.0,
+            total_iters=self.hparams.warmup_epochs,
+        )
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=max(1, self.hparams.max_epochs - self.hparams.warmup_epochs),
+            eta_min=1e-6,
+        )
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup, cosine],
+            milestones=[self.hparams.warmup_epochs],
+        )
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {"scheduler": scheduler, "interval": "epoch"},
+        }
+
+
+class PVigSegLightningModule(L.LightningModule):
+    """PyTorch Lightning wrapper for pViG semantic segmentation.
+
+    Datamodule contract
+    -------------------
+    Batches must be ``(images, masks)`` where:
+    - ``images``: ``Tensor[B, 3, 224, 224]`` — RGB, float32.
+    - ``masks``:  ``Tensor[B, 224, 224]`` — int64 class indices; 255 = ignore.
+
+    Args:
+        num_classes:      Segmentation classes (21 for VOC2012).
+        blocks:           Grapher+FFN blocks per stage, e.g. ``[2,2,6,2]``.
+        channels:         Feature channels per stage, e.g. ``[48,96,240,384]``.
+        k:                KNN neighbors (constant across all blocks).
+        conv:             Graph conv type: ``'mr'`` | ``'edge'`` | ``'sage'`` | ``'gin'``.
+        act:              Activation function name.
+        norm:             Normalisation: ``'batch'`` | ``'instance'``.
+        bias:             Bias in conv layers.
+        use_stochastic:   Stochastic graph construction.
+        epsilon:          Stochastic graph epsilon.
+        drop_path_rate:   Max stochastic depth drop rate.
+        dropout:          Spatial dropout in FPN decoder.
+        fpn_channels:     Uniform channel width inside the FPN.
+        in_channels:      Input image channels.
+        lr:               Peak learning rate for AdamW.
+        weight_decay:     AdamW weight decay.
+        warmup_epochs:    Linear-warmup length (epochs).
+        max_epochs:       Total training epochs (for cosine decay end).
+    """
+
+    def __init__(
+        self,
+        num_classes: int = 21,
+        blocks: List[int] = (2, 2, 6, 2),
+        channels: List[int] = (48, 96, 240, 384),
+        k: int = 9,
+        conv: str = "mr",
+        act: str = "gelu",
+        norm: str = "batch",
+        bias: bool = True,
+        use_stochastic: bool = False,
+        epsilon: float = 0.2,
+        drop_path_rate: float = 0.0,
+        dropout: float = 0.1,
+        fpn_channels: int = 256,
+        in_channels: int = 3,
+        lr: float = 1e-4,
+        weight_decay: float = 0.05,
+        warmup_epochs: int = 5,
+        max_epochs: int = 100,
+    ):
+        super().__init__()
+        self.save_hyperparameters()
+
+        self.model = PVigSeg(
+            num_classes=num_classes,
+            blocks=list(blocks),
+            channels=list(channels),
+            k=k,
+            conv=conv,
+            act=act,
+            norm=norm,
+            bias=bias,
+            use_stochastic=use_stochastic,
+            epsilon=epsilon,
+            drop_path_rate=drop_path_rate,
+            dropout=dropout,
+            fpn_channels=fpn_channels,
+            in_channels=in_channels,
+        )
+
+        self.train_miou = MulticlassJaccardIndex(num_classes=num_classes, ignore_index=255)
+        self.val_miou = MulticlassJaccardIndex(num_classes=num_classes, ignore_index=255)
+
+    # ------------------------------------------------------------------
+    # Preset constructors matching the four official pViG variants
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_tiny(cls, **kwargs) -> "PVigSegLightningModule":
+        """pViG-Ti: channels=[48,96,240,384], blocks=[2,2,6,2]."""
+        return cls(blocks=[2, 2, 6, 2], channels=[48, 96, 240, 384], **kwargs)
+
+    @classmethod
+    def from_small(cls, **kwargs) -> "PVigSegLightningModule":
+        """pViG-S: channels=[80,160,400,640], blocks=[2,2,6,2]."""
+        return cls(blocks=[2, 2, 6, 2], channels=[80, 160, 400, 640], **kwargs)
+
+    # ------------------------------------------------------------------
+    # Forward
+    # ------------------------------------------------------------------
+
+    def forward(self, x):
+        return self.model(x)
+
+    # ------------------------------------------------------------------
+    # Steps
+    # ------------------------------------------------------------------
+
+    def _shared_step(self, batch, stage: str):
+        images, masks = batch
+        logits = self.model(images)
+        loss = F.cross_entropy(logits, masks, ignore_index=255)
+
+        preds = logits.argmax(dim=1)
+        miou = self.train_miou if stage == "train" else self.val_miou
+        miou.update(preds, masks)
+
+        self.log(f"{stage}/loss", loss, on_step=(stage == "train"), on_epoch=True, prog_bar=True)
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        return self._shared_step(batch, "train")
+
+    def on_train_epoch_end(self):
+        self.log("train/mIoU", self.train_miou.compute(), prog_bar=True)
+        self.train_miou.reset()
+
+    def validation_step(self, batch, batch_idx):
+        self._shared_step(batch, "val")
+
+    def on_validation_epoch_end(self):
+        self.log("val/mIoU", self.val_miou.compute(), prog_bar=True)
+        self.val_miou.reset()
+
+    def test_step(self, batch, batch_idx):
+        self._shared_step(batch, "test")
+
+    def on_test_epoch_end(self):
+        self.log("test/mIoU", self.val_miou.compute())
+        self.val_miou.reset()
 
     # ------------------------------------------------------------------
     # Optimiser + scheduler
