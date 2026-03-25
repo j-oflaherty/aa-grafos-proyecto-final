@@ -47,7 +47,7 @@ En el segundo enfoque \cite{han2022vision} la imagen se divide en \textit{patche
 
 La comparación de ambos trabajos resulta interesante porque muestran dos maneras distintas de construir el grafo de entrada: una basada en segmentación espacial explícita (superpíxeles) y otra basada en relaciones de similitud entre \textit{patches}. A lo largo del informe se detallan los modelos, los criterios de construcción de grafos, la configuración experimental empleada y el análisis de resultados en tareas de clasificación de imágenes.
 
-El resto del informe se organiza de la siguiente manera: en la sección \ref{sec:metodologia} se describen las bases de datos utilizadas y los modelos implementados; en la sección \ref{sec:experimentos} se detallan los experimentos realizados; en la sección \ref{sec:resultados} se presentan los resultados obtenidos; finalmente, en la sección \ref{sec:conclusiones} se discuten las conclusiones y posibles líneas futuras de trabajo.
+El resto del informe se organiza de la siguiente manera: en la sección \ref{sec:metodologia} se describen las bases de datos utilizadas y los modelos implementados, en la sección \ref{sec:experimentos} se detallan los experimentos realizados y los resultados obtenidos y finalmente, en la sección \ref{sec:conclusiones}, se discuten las conclusiones y posibles líneas futuras de trabajo.
 
 \section{Metodología}
 \label{sec:metodologia}
@@ -58,7 +58,7 @@ En esta sección se describen las bases de datos utilizadas para evaluar los mod
 Se eligieron cuatro conjuntos de datos clásicos en el trabajo con imágenes que presentan diferentes características y niveles de dificultad y permiten analizar el desempeño de los modelos en distintos escenarios.
 
 \subsubsection{MNIST}
-La base de datos MNIST \cite{deng2012mnist} es un conjunto de imágenes de dígitos manuscritos, con 60,000 imágenes de entrenamiento y 10,000 imágenes de prueba. Cada imagen es de tamaño 28x28 píxeles en escala de grises, y el objetivo es clasificar cada imagen en una de las 10 clases correspondientes a los dígitos del cero al nueve. MNIST es un conjunto de datos ampliamente utilizado como punto de partida para evaluar modelos de clasificación de imágenes, debido a su simplicidad y a la gran cantidad de trabajos que lo han utilizado como referencia. En la Figura \ref{fig:mnist_examples} se muestran ejemplos representativos de las imágenes que se pueden encontrar.
+La base de datos MNIST \cite{deng2012mnist} es un conjunto de imágenes de dígitos manuscritos, con 60000 imágenes de entrenamiento y 10000 imágenes de prueba. Cada imagen es de tamaño 28x28 píxeles en escala de grises, y el objetivo es clasificar cada imagen en una de las 10 clases correspondientes a los dígitos del cero al nueve. MNIST es un conjunto de datos ampliamente utilizado como punto de partida para evaluar modelos de clasificación de imágenes, debido a su simplicidad y a la gran cantidad de trabajos que lo han utilizado como referencia. En la Figura \ref{fig:mnist_examples} se muestran ejemplos representativos de las imágenes que se pueden encontrar.
 
 \begin{figure}[htb]
     \centering
@@ -68,7 +68,7 @@ La base de datos MNIST \cite{deng2012mnist} es un conjunto de imágenes de dígi
 \end{figure}
 
 \subsubsection{STL10}
-La base de datos STL10 \cite{pmlr-v15-coates11a} contiene un conjunto de imágenes a color (tres canales RGB) de 96x96 píxeles que muestra diez clases de objetos, con 5,000 imágenes de entrenamiento y 8,000 imágenes de prueba. Las clases incluyen aviones, automóviles, pájaros, gatos, ciervos, perros, ranas, caballos, barcos y camiones. STL10 es un conjunto de datos más desafiante que MNIST debido a la mayor complejidad visual y a la presencia de ruido en las imágenes. La Figura \ref{fig:stl10_examples} presenta una muestra ilustrativa de este conjunto.
+La base de datos STL10 \cite{pmlr-v15-coates11a} contiene un conjunto de imágenes a color (tres canales RGB) de 96x96 píxeles que muestra diez clases de objetos, con 5000 imágenes de entrenamiento y 8000 imágenes de prueba. Las clases incluyen aviones, automóviles, pájaros, gatos, ciervos, perros, ranas, caballos, barcos y camiones. STL10 es un conjunto de datos más desafiante que MNIST debido a la mayor complejidad visual y a la presencia de ruido en las imágenes. La Figura \ref{fig:stl10_examples} presenta una muestra ilustrativa de este conjunto.
 
 \begin{figure}[htb]
     \centering
@@ -77,31 +77,16 @@ La base de datos STL10 \cite{pmlr-v15-coates11a} contiene un conjunto de imágen
     \label{fig:stl10_examples}
 \end{figure}
 
+\subsubsection{Imagenet100}
+Imagenet100 es una versión reducida del conjunto de datos ImageNet \cite{deng2009imagenet}, que contiene 100 clases seleccionadas de las 1000 clases originales. Cada clase tiene aproximadamente 1300 imágenes de entrenamiento y 50 imágenes de prueba, con un tamaño de imagen variable pero generalmente mayor que el de STL10. Este conjunto de datos se utiliza para evaluar modelos en tareas de clasificación de imágenes a gran escala.
+% #TODO: agregar grilla de 3x3 con imágenes de ejemplo.
+
+
 
 \subsection{Superpixel GAT}
-Se define un superpixel como un grupo de píxeles contiguos que comparten características visuales similares (como color, textura o intensidad). La segmentación en superpíxeles permite reducir la dimensión de la imagen al agrupar píxeles en regiones coherentes, lo que facilita el análisis y la clasificación. Particularmente, se utiliza el método SLIC (Simple Linear Iterative Clustering) \cite{6205760} para segmentar la imagen en superpíxeles. Este método agrupa píxeles en regiones de tamaño similar basándose en la similitud de color y proximidad espacial. El número de superpíxeles se puede ajustar según el nivel de detalle deseado, y cada superpixel se representa mediante un vector de características que puede incluir información como el color promedio, la textura o la forma.
+Para crear el grafo a partir de una imagen, se utiliza una técnica de segmentación basada en superpíxeles. Se define un superpixel como un grupo de píxeles contiguos que comparten características visuales similares (como color, textura o intensidad). La segmentación en superpíxeles permite reducir la dimensión de la imagen al agrupar píxeles en regiones coherentes, lo que facilita el análisis y la clasificación. Particularmente, se utiliza el método SLIC (Simple Linear Iterative Clustering) \cite{6205760} para segmentar la imagen en superpíxeles. Este método agrupa píxeles en regiones de tamaño similar basándose en la similitud de color y proximidad espacial. El número de superpíxeles se puede ajustar según el nivel de detalle deseado, y cada superpixel se representa mediante un vector de características que puede incluir información como el color promedio, la textura o la forma.
 
-Una vez segmentada la imagen en superpíxeles, se construye un grafo de adyacencia de regiones (RAG) donde cada nodo representa un superpixel y las aristas conectan nodos que corresponden a superpíxeles adyacentes en la imagen. Este grafo captura las relaciones espaciales entre las regiones segmentadas, lo que permite al modelo aprender patrones de interacción entre diferentes partes de la imagen. Las Figuras \ref{fig:mnist_superpixel_rag_examples} y \ref{fig:stl10_superpixel_rag_examples} muestran ejemplos de grafos RAG generados sobre imágenes de MNIST y STL10 usando SLIC.
-
-\begin{figure}[htb]
-    \centering
-    \small
-    \fbox{\parbox[c][0.9cm][c]{1.6cm}{\centering Imagen}}
-    $\rightarrow$
-    \fbox{\parbox[c][0.9cm][c]{1.9cm}{\centering SLIC}}
-    $\rightarrow$
-    \fbox{\parbox[c][0.9cm][c]{2.0cm}{\centering Grafo RAG}}
-    $\rightarrow$
-    \fbox{\parbox[c][0.9cm][c]{2.2cm}{\centering Capas GAT}}
-    $\rightarrow$
-    \fbox{\parbox[c][0.9cm][c]{2.3cm}{\centering Pooling global}}
-    $\rightarrow$
-    \fbox{\parbox[c][0.9cm][c]{1.5cm}{\centering MLP + softmax}}
-    \caption{Esquema del pipeline de clasificación del enfoque Superpixel-GAT.}
-    \label{fig:superpixel_gat_pipeline}
-\end{figure}
-
-El flujo general del modelo utilizado para clasificación se resume en la Figura \ref{fig:superpixel_gat_pipeline}.
+Una vez segmentada la imagen en superpíxeles, se construye un grafo de adyacencia de regiones (RAG), donde cada nodo representa un superpíxel y las aristas conectan nodos de regiones vecinas. Este grafo captura relaciones espaciales entre las regiones segmentadas y permite al modelo aprender patrones de interacción entre distintas partes de la imagen. Las Figuras \ref{fig:mnist_superpixel_rag_examples} y \ref{fig:stl10_superpixel_rag_examples} muestran ejemplos de grafos RAG generados sobre imágenes de MNIST y STL10 con SLIC. En MNIST, se observa que los superpíxeles tienden a agrupar regiones homogéneas de los dígitos: en amarillo se muestran superpíxeles con color promedio más claro y en negro los de color promedio más oscuro. Solo con el grafo ya se distingue la forma del número, lo que sugiere que la característica de posición puede facilitar la tarea de clasificación. En STL10, el grafo se superpone sobre la imagen para facilitar la interpretación. Allí se ve que el método de segmentación, si bien logra separar objeto y fondo en muchos casos, en algunos superpíxeles mezcla píxeles de ambos.
 
 \begin{figure}[htb]
     \centering
@@ -117,26 +102,17 @@ El flujo general del modelo utilizado para clasificación se resume en la Figura
     \label{fig:stl10_superpixel_rag_examples}
 \end{figure}
 
-Para la clasificación, se utiliza una GAT \cite{velickovic2018graph}, que actualiza las representaciones de los nodos mediante mecanismos de atención sobre sus vecinos. En cada capa, primero se aplica una transformación lineal a las características de los nodos y luego se calcula, para cada arista $(i,j)$, un coeficiente de atención no normalizado:
-\begin{equation}
-    e_{ij} = \text{LeakyReLU}\left(\mathbf{a}^{\top}[\mathbf{W}\mathbf{h}_i\,\|\,\mathbf{W}\mathbf{h}_j]\right)
-\end{equation}
-donde $\mathbf{h}_i$ es la representación del nodo $i$, $\mathbf{W}$ son parámetros entrenables y $\mathbf{a}$ es el vector de atención.
-
-Luego, estos coeficientes se normalizan con \textit{softmax} sobre el vecindario de cada nodo:
-\begin{equation}
-    \alpha_{ij} = \frac{\exp(e_{ij})}{\sum_{k \in \mathcal{N}(i)} \exp(e_{ik})}
-\end{equation}
-y la nueva representación del nodo se obtiene como una suma ponderada de vecinos:
-\begin{equation}
-    \mathbf{h}'_i = \sigma\left(\sum_{j \in \mathcal{N}(i)} \alpha_{ij}\,\mathbf{W}\mathbf{h}_j\right)
-\end{equation}
-
-En el caso particular de superpíxeles, estos pesos de atención permiten que el modelo priorice regiones vecinas más informativas para la clasificación de la imagen completa. Finalmente, a partir de las representaciones de cada superpixel se obtiene una representación vectorial global que se utiliza en una capa lineal con \textit{softmax} para predecir la clase.
+Una vez creado el grafo, se utiliza una red neuronal de tipo GAT (\textit{Graph Attention Network}) para procesar la información y clasificar la imagen. Como entrada de la GAT se usan las características de cada superpíxel (en este caso, iluminación y posición), y el modelo aprende a asignar distintos pesos de atención a los nodos vecinos para capturar relaciones relevantes entre las regiones. Además, se emplean varias cabezas de atención que procesan diferentes partes de la imagen; luego, sus salidas se concatenan para obtener una representación vectorial global. Finalmente, esa representación pasa por una capa MLP para realizar la clasificación. El proceso general del modelo Superpixel GAT se ilustra en la Figura \ref{fig:superpixel_gat_pipeline}.
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\linewidth]{images/superpixel_gat_pipeline.pdf}
+    \caption{Procesamiento general del modelo Superpixel GAT: segmentación en superpíxeles, construcción del grafo RAG y clasificación mediante GAT.}
+    \label{fig:superpixel_gat_pipeline}
+\end{figure}
 
 \subsection{VisionGNN}
 
-VisionGNN define una nueva arquitectura, jugando con la creación del grafo a medida que la imagen atraviesa el modelo. La idea es simple: dividir la imagen en \textit{patches} y asignar aristas en base a un \textit{KNN} sobre los pixeles. Este enfoque, a diferencia del antes mencionado, no utiliza la información espacial de la imagen, sino que hace las conexiones del grafo puramente basado en las características de cada \textit{patch}.
+VisionGNN~\cite{han2022vision} define una nueva arquitectura, jugando con la creación del grafo a medida que la imagen atraviesa el modelo. La idea es simple: dividir la imagen en \textit{patches} y asignar aristas en base a un \textit{KNN} sobre los pixeles. Este enfoque, a diferencia del antes mencionado, no utiliza la información espacial de la imagen, sino que hace las conexiones del grafo puramente basado en las características de cada \textit{patch}.
 
 \begin{figure}[htb]
     \includegraphics[width=0.45\textwidth]{images/vig.pdf}
@@ -326,15 +302,15 @@ Siguiendo la discusión sobre Superpixel, se observa que las métricas son menor
 
 Los modelos \textit{ViG} y \textit{PyramidViG} exhiben desempeño superior, particularmente \textit{PyramidViG}, aunque requieren tiempos de entrenamiento y número de pasos significativamente mayores respecto a ResNet. Esto es un buen indicador para confiar en los resultados presentados en el paper. La duración extendida del entrenamiento se puede atribuir a dos factores: (i) la mayor complejidad computacional inherente a estas arquitecturas, reflejada en un mayor número de operaciones de punto flotante (FLOPs), y (ii) la incorporación de técnica de promediado exponencial móvil (EMA), que produce trayectorias de aprendizaje más suavizadas y favorece la regularización del modelo.
 
+\subsection{Imagenet100}
+Finalmente, se entrenó \textit{PyramidViG} sobre Imagenet100. Dado que los resultados del modelo Superpixel GAT no fueron competitivos en STL10 (tanto en resultados como en cantidad de parámetros al que fue posible escalarlo), se decidió no incluirlo en esta etapa. En la figura \ref{fig:training_curves_imagenet100} se presentan las curvas de entrenamiento de \textit{PyramidViG} en Imagenet100, mostrando la evolución de la \textit{accuracy} en función de los pasos de entrenamiento. Se observa que el modelo en entrenamiento alcanza un \textit{accuracy} de alrededor del 50\%, mientras que en validación llega al 80\%. Esto se debe a que el modelo utiliza la técnica de promediado exponencial móvil (EMA) durante el entrenamiento, lo que produce trayectorias de aprendizaje más suavizadas y favorece la regularización del modelo.
+
+% #TODO: agregar imagen con curvas de entrenamiento de imagenet100. No las puse yo porque capaz podemos sacar alguna foto mejor de lo que está en tensorboard. 
+
 
 \section{Conclusiones}
 \label{sec:conclusiones}
-En este informe se presentaron dos enfoques basados en redes neuronales sobre grafos para la clasificación de imágenes: uno basado en superpíxeles y otro basado en \textit{patches} con conectividad dinámica. Se implementaron ambos modelos y se evaluaron en los conjuntos de datos MNIST y STL10, comparando su desempeño con una arquitectura convencional (ResNet). En MNIST, ambos modelos basados en grafos alcanzaron rendimientos comparables a ResNet, mientras que en STL10 los modelos de Vision GNN superaron a ResNet, aunque con tiempos de entrenamiento significativamente mayores. El modelo de Superpixel GAT no logró alcanzar un rendimiento competitivo en STL10, lo que sugiere que su escalabilidad a conjuntos de datos más complejos puede ser limitada. En general, los resultados respaldan la viabilidad de las redes neuronales sobre grafos para tareas de visión por computadora, aunque también resaltan la necesidad de optimizar su eficiencia computacional para aplicaciones prácticas. Las líneas futuras de trabajo incluyen la exploración de técnicas de regularización y optimización específicas para GNNs, así como la aplicación de estos modelos a tareas más complejas como segmentación semántica y detección de objetos.
-
-\section{References}
-\label{sec:ref}
-
-En esta sección se listan las referencias bibliográficas del trabajo.
+En este informe se analizaron dos enfoques de redes neuronales sobre grafos para clasificación de imágenes, uno basado en superpíxeles y otro basado en \textit{patches} con conectividad dinámica, evaluados en MNIST y STL10 y comparándolos frente a un modelo clásico como ResNet. En términos generales, los resultados obtenidos son consistentes con lo reportado en los trabajos de referencia y muestran que fue posible adaptar ambas arquitecturas a bases de datos con distinta complejidad. En MNIST, los métodos basados en grafos alcanzaron desempeños comparables a ResNet. Por su parte, en STL10 las variantes de Vision GNN superaron a ResNet18 en exactitud, mientras que Superpixel-GAT no logró resultados competitivos en ese escenario. Estos resultados sugieren que las arquitecturas basadas en grafos pueden ser efectivas para clasificación de imágenes, en particular lo planteado en \textit{VisionGNN}. Como líneas futuras de trabajo, sería importante trabajar en la optimización de los modelos para reducir los tiempos de entrenamiento y costo computacional. También es de interés estudiar la aplicación de estos modelos a tareas más complejas como segmentación semántica y detección de objetos.
 
 % References should be produced using the bibtex program from suitable
 % BiBTeX files (here: strings, refs, manuals). The IEEEbib.bst bibliography

@@ -29,6 +29,66 @@ def _to_hwc_float32(image: np.ndarray | torch.Tensor) -> np.ndarray:
     return image
 
 
+def _save_original_image(image: np.ndarray | torch.Tensor, output_path: Path) -> Path:
+    """Save original image without overlays."""
+    try:
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "matplotlib is required for graph visualization. "
+            "Install dev deps with: uv sync --group dev"
+        ) from exc
+
+    image_hwc = _to_hwc_float32(image)
+    if image_hwc.shape[-1] == 1:
+        image_to_save = image_hwc[:, :, 0]
+    else:
+        image_to_save = image_hwc
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.imsave(output_path, image_to_save)
+    return output_path
+
+
+def _save_superpixel_only_image(
+    image: np.ndarray | torch.Tensor,
+    output_path: Path,
+    desired_nodes: int = 75,
+    compactness: float = 0.1,
+    boundary_mode: str = "inner",
+) -> Path:
+    """Save image with superpixel boundaries only (no graph edges or nodes)."""
+    image_hwc = _to_hwc_float32(image)
+    superpixel_graph = get_superpixel_graph_from_image(
+        image_hwc,
+        desired_nodes=desired_nodes,
+        compactness=compactness,
+    )
+
+    canvas = image_hwc
+    if image_hwc.shape[2] == 1:
+        canvas = np.repeat(image_hwc, 3, axis=2)
+
+    overlay = mark_boundaries(
+        canvas,
+        superpixel_graph.segments.numpy(),
+        color=(1, 1, 0),
+        mode=boundary_mode,
+    )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "matplotlib is required for graph visualization. "
+            "Install dev deps with: uv sync --group dev"
+        ) from exc
+
+    plt.imsave(output_path, overlay)
+    return output_path
+
+
 def save_graph_overlay(
     image: np.ndarray | torch.Tensor,
     output_path: str | Path,
@@ -42,6 +102,7 @@ def save_graph_overlay(
     node_color: str = "red",
     node_edge_color: str = "white",
     node_edge_width: float = 0.6,
+    boundary_mode: str = "inner",
 ) -> Path:
     """Build a SLIC graph from one image and save an overlay figure."""
     try:
@@ -81,7 +142,10 @@ def save_graph_overlay(
 
     if draw_boundaries:
         canvas = mark_boundaries(
-            canvas, superpixel_graph.segments.numpy(), color=(1, 1, 0), mode="thick"
+            canvas,
+            superpixel_graph.segments.numpy(),
+            color=(1, 1, 0),
+            mode=boundary_mode,
         )
 
     ax.imshow(canvas)
@@ -127,7 +191,10 @@ def save_graph_batch(
     node_color: str = "red",
     node_edge_color: str = "white",
     node_edge_width: float = 0.6,
+    boundary_mode: str = "inner",
     prefix: str = "graph",
+    save_originals: bool = False,
+    save_superpixel_only: bool = False,
 ) -> list[Path]:
     """Save graph overlays for a batch of images.
 
@@ -151,9 +218,23 @@ def save_graph_batch(
     saved_paths: list[Path] = []
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    originals_dir = output_dir / "originals"
+    superpixels_dir = output_dir / "superpixels"
 
     for idx in range(images.shape[0]):
         out_path = output_dir / f"{prefix}_{idx:04d}.png"
+        if save_originals:
+            original_path = originals_dir / f"{prefix}_{idx:04d}_original.png"
+            _save_original_image(images[idx], original_path)
+        if save_superpixel_only:
+            superpixel_path = superpixels_dir / f"{prefix}_{idx:04d}_superpixel.png"
+            _save_superpixel_only_image(
+                images[idx],
+                superpixel_path,
+                desired_nodes=desired_nodes,
+                compactness=compactness,
+                boundary_mode=boundary_mode,
+            )
         saved_paths.append(
             save_graph_overlay(
                 images[idx],
@@ -168,6 +249,7 @@ def save_graph_batch(
                 node_color=node_color,
                 node_edge_color=node_edge_color,
                 node_edge_width=node_edge_width,
+                boundary_mode=boundary_mode,
             )
         )
 
@@ -235,6 +317,12 @@ def main() -> None:
     parser.add_argument("--node-edge-color", default="white")
     parser.add_argument("--node-edge-width", type=float, default=0.8)
     parser.add_argument(
+        "--boundary-mode",
+        choices=["thick", "inner", "outer", "subpixel"],
+        default="inner",
+        help="Superpixel boundary style. Use 'inner' for thinner boundaries.",
+    )
+    parser.add_argument(
         "--no-boundaries",
         action="store_true",
         help="Disable drawing SLIC boundaries on top of images.",
@@ -246,6 +334,19 @@ def main() -> None:
     )
     parser.add_argument("--output-dir", default="outputs/graph_viz")
     parser.add_argument("--prefix", default="graph")
+    parser.add_argument(
+        "--save-originals",
+        action="store_true",
+        help="Save original input images in output_dir/originals.",
+    )
+    parser.add_argument(
+        "--save-superpixel-only",
+        action="store_true",
+        help=(
+            "Save images with only superpixel boundaries (no graph edges/nodes) "
+            "in output_dir/superpixels."
+        ),
+    )
     args = parser.parse_args()
 
     default_data_dir = "data/mnist" if args.dataset == "mnist" else "data/stl10"
@@ -271,7 +372,10 @@ def main() -> None:
         node_color=args.node_color,
         node_edge_color=args.node_edge_color,
         node_edge_width=args.node_edge_width,
+        boundary_mode=args.boundary_mode,
         prefix=args.prefix,
+        save_originals=args.save_originals,
+        save_superpixel_only=args.save_superpixel_only,
     )
     print(f"Saved {len(saved)} graph overlays to: {Path(args.output_dir).resolve()}")
 
