@@ -91,6 +91,20 @@ def _save_layer_overlay(
     plt.close(fig)
 
 
+def _save_original_image(image_hwc: np.ndarray, output_path: Path) -> None:
+    """Save the original preprocessed image without graph overlays."""
+    try:
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "matplotlib is required for graph visualization. "
+            "Install dev deps with: uv sync --group dev"
+        ) from exc
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.imsave(output_path, image_hwc)
+
+
 @torch.no_grad()
 def _save_random_patch_neighbors_overlay(
     image_hwc: np.ndarray,
@@ -231,6 +245,65 @@ def _parse_layers(raw: str | None, n_blocks: int) -> list[int]:
     return sorted(set(out))
 
 
+def _parse_two_layers(raw: str | None, available_layers: list[int]) -> tuple[int, int]:
+    """Parse two target layers for triptych composition."""
+    if raw is None or raw.strip() == "":
+        if len(available_layers) < 2:
+            raise ValueError("Need at least two layers to build a triptych.")
+        return available_layers[0], available_layers[1]
+
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if len(parts) != 2:
+        raise ValueError("--triptych-layers must contain exactly two indices: a,b")
+
+    a = int(parts[0])
+    b = int(parts[1])
+    if a not in available_layers or b not in available_layers:
+        raise ValueError("Triptych layer indices must be included in --layers.")
+    return a, b
+
+
+def _compose_triptych_with_footnotes(
+    original_path: Path,
+    layer_a_path: Path,
+    layer_b_path: Path,
+    output_path: Path,
+    footnote_original: str,
+    footnote_layer_a: str,
+    footnote_layer_b: str,
+) -> None:
+    """Create one figure with 3 panels and a footnote under each panel."""
+    try:
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "matplotlib is required for graph visualization. "
+            "Install dev deps with: uv sync --group dev"
+        ) from exc
+
+    img_original = plt.imread(original_path)
+    img_layer_a = plt.imread(layer_a_path)
+    img_layer_b = plt.imread(layer_b_path)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    panels = [
+        (img_original, footnote_original),
+        (img_layer_a, footnote_layer_a),
+        (img_layer_b, footnote_layer_b),
+    ]
+    for ax, (img, note) in zip(axes, panels, strict=False):
+        ax.imshow(img)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel(note, fontsize=9, labelpad=8)
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
 def _resolve_checkpoint_path(
     checkpoint: str | None,
     run_name: str | None,
@@ -353,6 +426,37 @@ def main() -> None:
         default=42,
         help="Random seed used for selecting query patches.",
     )
+    parser.add_argument(
+        "--compose-triptych",
+        action="store_true",
+        help=(
+            "Create one composed image per sample with: original + random-patch "
+            "views from two layers."
+        ),
+    )
+    parser.add_argument(
+        "--triptych-layers",
+        default=None,
+        help=(
+            "Comma-separated pair of layer indices to include in triptych, "
+            "for example: 0,11."
+        ),
+    )
+    parser.add_argument(
+        "--footnote-original",
+        default="Original image",
+        help="Footnote shown under the original image panel.",
+    )
+    parser.add_argument(
+        "--footnote-layer-a",
+        default="Layer {layer}: random query patches and neighbors",
+        help="Footnote template for the first selected layer panel.",
+    )
+    parser.add_argument(
+        "--footnote-layer-b",
+        default="Layer {layer}: random query patches and neighbors",
+        help="Footnote template for the second selected layer panel.",
+    )
     args = parser.parse_args()
 
     default_data_dir = "data/mnist" if args.dataset == "mnist" else "data/stl10"
@@ -393,6 +497,13 @@ def main() -> None:
     graphs = lit.model.get_captured_graphs()
     layer_ids = _parse_layers(args.layers, len(graphs))
 
+    if args.compose_triptych and args.random_patches <= 0:
+        raise ValueError("--compose-triptych requires --random-patches > 0")
+
+    triptych_layers: tuple[int, int] | None = None
+    if args.compose_triptych:
+        triptych_layers = _parse_two_layers(args.triptych_layers, layer_ids)
+
     out_root = Path(args.output_dir)
     out_root.mkdir(parents=True, exist_ok=True)
 
@@ -400,6 +511,11 @@ def main() -> None:
         image_hwc = _tensor_to_hwc_image(batch[sample_idx])
         sample_dir = out_root / f"sample_{sample_idx:03d}"
         sample_dir.mkdir(parents=True, exist_ok=True)
+        sample_seed = args.seed + sample_idx * 1000
+
+        original_out_path = sample_dir / "original.png"
+        _save_original_image(image_hwc, original_out_path)
+        random_paths_by_layer: dict[int, Path] = {}
 
         for layer_idx in layer_ids:
             graph = graphs[layer_idx]
@@ -422,7 +538,6 @@ def main() -> None:
                 random_out_path = sample_dir / (
                     f"layer_{layer_idx:02d}_random{args.random_patches}.png"
                 )
-                local_seed = args.seed + sample_idx * 1000 + layer_idx
                 _save_random_patch_neighbors_overlay(
                     image_hwc=image_hwc,
                     edge_index=edge_index[:, sample_idx : sample_idx + 1],
@@ -432,8 +547,33 @@ def main() -> None:
                     linewidth=max(0.5, args.edge_width),
                     node_size=args.node_size,
                     n_random_patches=args.random_patches,
-                    seed=local_seed,
+                    seed=sample_seed,
                 )
+                random_paths_by_layer[layer_idx] = random_out_path
+
+        if args.compose_triptych and triptych_layers is not None:
+            layer_a, layer_b = triptych_layers
+            if (
+                layer_a not in random_paths_by_layer
+                or layer_b not in random_paths_by_layer
+            ):
+                raise ValueError(
+                    "Triptych layers were not generated. "
+                    "Check --layers and --triptych-layers arguments."
+                )
+
+            triptych_path = sample_dir / f"triptych_{layer_a:02d}_{layer_b:02d}.png"
+            note_a = args.footnote_layer_a.format(layer=layer_a)
+            note_b = args.footnote_layer_b.format(layer=layer_b)
+            _compose_triptych_with_footnotes(
+                original_path=original_out_path,
+                layer_a_path=random_paths_by_layer[layer_a],
+                layer_b_path=random_paths_by_layer[layer_b],
+                output_path=triptych_path,
+                footnote_original=args.footnote_original,
+                footnote_layer_a=note_a,
+                footnote_layer_b=note_b,
+            )
 
     LOGGER.info("Saved graph visualizations to: %s", out_root.resolve())
 

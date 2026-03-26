@@ -1,0 +1,28 @@
+# ResNet nano baseline on MNIST — ~45 k parameters.
+# Comparable size to the SuperpixelGAT model for fair MNIST benchmarking.
+# hidden_dim=16, num_layers=2 → stages: 16→16 (stride 1), 16→32 (stride 2).
+
+trainer:
+  max_epochs: 100
+  logger:
+    init_args:
+      name: resnet-nano
+
+model:
+  class_path: vision_gnn.models.resnet.ResNetLightningModule
+  init_args:
+    model_name: mini
+    num_classes: 10
+    hidden_dim: 16   # stem output channels; stage 0 stays at 16, stage 1 doubles to 32
+    num_layers: 2    # two residual stages → ~45 k params
+    warmup_epochs: 5
+    max_epochs: 100
+
+data:
+  class_path: vision_gnn.data.mnist.MNISTDataModule
+  init_args:
+    data_dir: data/mnist
+    batch_size: 64
+    num_workers: 4
+    val_split: 0.1
+    classes: null
