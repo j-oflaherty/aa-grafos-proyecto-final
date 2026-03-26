@@ -303,10 +303,21 @@ Siguiendo la discusión sobre Superpixel, se observa que las métricas son menor
 Los modelos \textit{ViG} y \textit{PyramidViG} exhiben desempeño superior, particularmente \textit{PyramidViG}, aunque requieren tiempos de entrenamiento y número de pasos significativamente mayores respecto a ResNet. Esto es un buen indicador para confiar en los resultados presentados en el paper. La duración extendida del entrenamiento se puede atribuir a dos factores: (i) la mayor complejidad computacional inherente a estas arquitecturas, reflejada en un mayor número de operaciones de punto flotante (FLOPs), y (ii) la incorporación de técnica de promediado exponencial móvil (EMA), que produce trayectorias de aprendizaje más suavizadas y favorece la regularización del modelo.
 
 \subsection{Imagenet100}
-Finalmente, se entrenó \textit{PyramidViG} sobre Imagenet100. Dado que los resultados del modelo Superpixel GAT no fueron competitivos en STL10 (tanto en resultados como en cantidad de parámetros al que fue posible escalarlo), se decidió no incluirlo en esta etapa. En la figura \ref{fig:training_curves_imagenet100} se presentan las curvas de entrenamiento de \textit{PyramidViG} en Imagenet100, mostrando la evolución de la \textit{accuracy} en función de los pasos de entrenamiento. Se observa que el modelo en entrenamiento alcanza un \textit{accuracy} de alrededor del 50\%, mientras que en validación llega al 80\%. Esto se debe a que el modelo utiliza la técnica de promediado exponencial móvil (EMA) durante el entrenamiento, lo que produce trayectorias de aprendizaje más suavizadas y favorece la regularización del modelo.
 
-% #TODO: agregar imagen con curvas de entrenamiento de imagenet100. No las puse yo porque capaz podemos sacar alguna foto mejor de lo que está en tensorboard. 
+Finalmente, se entrenó \textit{PyramidViG} sobre Imagenet100. Dado que los resultados del modelo Superpixel GAT no fueron competitivos en STL10 (tanto en resultados como en cantidad de parámetros al que fue posible escalarlo), se decidió no incluirlo en esta etapa. En la figura \ref{fig:imagenet100_results} se presentan las curvas de exactitud de entrenamiento/validación para \textit{PyramidViG} en Imagenet100. Como se observa en la figura~\ref{fig:imagenet100_results} que el modelo en entrenamiento alcanza un \textit{accuracy} de alrededor del 50\%, mientras que en validación llega al 80\%. Esto se debe a que el modelo utiliza la técnica de promediado exponencial móvil (EMA) durante el entrenamiento, lo que produce trayectorias de aprendizaje más suavizadas y favorece la regularización del modelo.
 
+\begin{figure}[htb]
+    \centering
+    \begin{subfigure}{0.98\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{images/pvig_imagenet100_accuracy_curves.pdf}
+        \caption{Curvas de exactitud Top-1 de entrenamiento y validación en función de los pasos.}
+        \label{fig:training_curves_imagenet100}
+    \end{subfigure}
+
+    \caption{Resultados de \textit{PyramidViG} en Imagenet100: curvas de exactitud.}
+    \label{fig:imagenet100_results}
+\end{figure}
 
 \section{Conclusiones}
 \label{sec:conclusiones}

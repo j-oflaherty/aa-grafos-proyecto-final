@@ -49,6 +49,28 @@ def load_stl10_losses() -> dict[str, pd.DataFrame]:
     }
 
 
+def load_imagenet100_train_curve() -> pd.DataFrame:
+    curve = pd.read_csv(ROOT / "pvig-ti-imagenet100_train.csv")
+    curve["Relative time (min)"] = (
+        curve["Wall time"] - curve["Wall time"].iloc[0]
+    ) / 60.0
+    return curve
+
+
+def load_imagenet100_val_curve() -> pd.DataFrame:
+    curve = pd.read_csv(ROOT / "pvig-ti-imagenet100_acc_val.csv")
+    curve["Relative time (min)"] = (
+        curve["Wall time"] - curve["Wall time"].iloc[0]
+    ) / 60.0
+    return curve
+
+
+def load_imagenet100_class_accuracy() -> pd.DataFrame:
+    return pd.read_csv(
+        OUTPUT_DIR / "pvig_imagenet100_class_accuracy.csv"
+    )
+
+
 def plot_against_step(
     curves: dict[str, pd.DataFrame], dataset_name: str, output_name: str
 ) -> None:
@@ -124,6 +146,73 @@ def _loss_at_step(loss_df: pd.DataFrame, step: int) -> tuple[float, int]:
     return loss_value, nearest_step
 
 
+def plot_imagenet100_accuracy_curves(
+    train_curve: pd.DataFrame,
+    val_curve: pd.DataFrame,
+    output_name: str,
+) -> None:
+    plt.figure(figsize=(10, 5.5))
+    plt.plot(
+        train_curve["Step"],
+        train_curve["Value"],
+        marker="o",
+        linewidth=2,
+        markersize=2.5,
+        color="#1f77b4",
+        label="Train Top-1",
+    )
+    plt.plot(
+        val_curve["Step"],
+        val_curve["Value"],
+        marker="s",
+        linewidth=2,
+        markersize=2.5,
+        color="#ff7f0e",
+        label="Validation Top-1",
+    )
+    plt.title("Curvas de exactitud en ImageNet100 (PyramidViG)", fontsize=16)
+    plt.xlabel("Pasos", fontsize=LABEL_FONTSIZE)
+    plt.ylabel("Exactitud Top-1", fontsize=LABEL_FONTSIZE)
+    plt.xticks(fontsize=TICK_FONTSIZE)
+    plt.yticks(fontsize=TICK_FONTSIZE)
+    plt.grid(alpha=0.25)
+    plt.legend(fontsize=LEGEND_FONTSIZE)
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / output_name, dpi=180)
+
+
+def plot_imagenet100_class_distribution(
+    class_accuracy: pd.DataFrame, output_name: str
+) -> None:
+    plt.figure(figsize=(10, 5.5))
+    class_acc_sorted = class_accuracy.sort_values(
+        "accuracy", ascending=True
+    ).reset_index(drop=True)
+    plt.bar(
+        class_acc_sorted.index,
+        class_acc_sorted["accuracy"],
+        color="#2ca02c",
+        alpha=0.85,
+        width=0.9,
+    )
+    plt.axhline(
+        class_accuracy["accuracy"].mean(),
+        color="#d62728",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Media: {class_accuracy['accuracy'].mean():.3f}",
+    )
+    plt.title("Distribucion de exactitud por clase en ImageNet100", fontsize=16)
+    plt.xlabel("Clase (ordenada por exactitud)", fontsize=LABEL_FONTSIZE)
+    plt.ylabel("Exactitud", fontsize=LABEL_FONTSIZE)
+    plt.xticks([])
+    plt.yticks(fontsize=TICK_FONTSIZE)
+    plt.grid(axis="y", alpha=0.25)
+    plt.legend(fontsize=LEGEND_FONTSIZE)
+    plt.tight_layout()
+    plt.savefig(OUTPUT_DIR / output_name, dpi=180)
+
+
 def print_max_top1_with_loss(
     curves: dict[str, pd.DataFrame],
     losses: dict[str, pd.DataFrame],
@@ -181,6 +270,24 @@ print_max_top1_with_loss(
     stl10_curves,
     stl10_losses,
     dataset_name="STL10",
+)
+
+# %%
+imagenet100_train_curve = load_imagenet100_train_curve()
+imagenet100_val_curve = load_imagenet100_val_curve()
+imagenet100_class_accuracy = load_imagenet100_class_accuracy()
+
+# %%
+plot_imagenet100_accuracy_curves(
+    imagenet100_train_curve,
+    imagenet100_val_curve,
+    output_name="pvig_imagenet100_accuracy_curves.pdf",
+)
+
+# %%
+plot_imagenet100_class_distribution(
+    imagenet100_class_accuracy,
+    output_name="pvig_imagenet100_class_distribution.pdf",
 )
 
 # %%

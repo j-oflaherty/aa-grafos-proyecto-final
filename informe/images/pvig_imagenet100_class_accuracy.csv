@@ -1,0 +1,101 @@
+class_index,class_name,total_samples,correct_predictions,accuracy
+0,tench,50,47,0.940000
+1,goldfish,50,48,0.960000
+2,great white shark,50,38,0.760000
+3,tiger shark,50,32,0.640000
+4,hammerhead,50,39,0.780000
+5,electric ray,50,34,0.680000
+6,stingray,50,34,0.680000
+7,cock,50,36,0.720000
+8,hen,50,43,0.860000
+9,goldfinch,50,49,0.980000
+10,indigo bunting,50,47,0.940000
+11,bulbul,50,46,0.920000
+12,magpie,50,46,0.920000
+13,chickadee,50,49,0.980000
+14,water ouzel,50,43,0.860000
+15,kite,50,36,0.720000
+16,bald eagle,50,47,0.940000
+17,great grey owl,50,48,0.960000
+18,common newt,50,35,0.700000
+19,spotted salamander,50,48,0.960000
+20,axolotl,50,43,0.860000
+21,tailed frog,50,25,0.500000
+22,loggerhead,50,36,0.720000
+23,leatherback turtle,50,34,0.680000
+24,mud turtle,50,35,0.700000
+25,terrapin,50,21,0.420000
+26,banded gecko,50,33,0.660000
+27,common iguana,50,35,0.700000
+28,whiptail,50,44,0.880000
+29,agama,50,35,0.700000
+30,green lizard,50,38,0.760000
+31,Komodo dragon,50,47,0.940000
+32,American alligator,50,41,0.820000
+33,thunder snake,50,39,0.780000
+34,hognose snake,50,31,0.620000
+35,green snake,50,30,0.600000
+36,king snake,50,43,0.860000
+37,garter snake,50,47,0.940000
+38,vine snake,50,35,0.700000
+39,night snake,50,21,0.420000
+40,boa constrictor,50,42,0.840000
+41,green mamba,50,28,0.560000
+42,sea snake,50,36,0.720000
+43,horned viper,50,35,0.700000
+44,diamondback,50,32,0.640000
+45,sidewinder,50,4,0.080000
+46,harvestman,50,45,0.900000
+47,scorpion,50,40,0.800000
+48,black and gold garden spider,50,48,0.960000
+49,barn spider,50,19,0.380000
+50,garden spider,50,28,0.560000
+51,black widow,50,45,0.900000
+52,tarantula,50,47,0.940000
+53,wolf spider,50,42,0.840000
+54,tick,50,39,0.780000
+55,black grouse,50,45,0.900000
+56,ptarmigan,50,43,0.860000
+57,prairie chicken,50,48,0.960000
+58,peacock,50,43,0.860000
+59,macaw,50,46,0.920000
+60,sulphur-crested cockatoo,50,44,0.880000
+61,lorikeet,50,49,0.980000
+62,coucal,50,45,0.900000
+63,bee eater,50,49,0.980000
+64,hornbill,50,41,0.820000
+65,hummingbird,50,48,0.960000
+66,toucan,50,45,0.900000
+67,drake,50,38,0.760000
+68,goose,50,33,0.660000
+69,black swan,50,49,0.980000
+70,wallaby,50,41,0.820000
+71,wombat,50,43,0.860000
+72,jellyfish,50,45,0.900000
+73,sea anemone,50,41,0.820000
+74,flatworm,50,39,0.780000
+75,nematode,50,46,0.920000
+76,conch,50,37,0.740000
+77,snail,50,44,0.880000
+78,sea slug,50,36,0.720000
+79,chiton,50,40,0.800000
+80,chambered nautilus,50,43,0.860000
+81,Dungeness crab,50,42,0.840000
+82,rock crab,50,29,0.580000
+83,spiny lobster,50,37,0.740000
+84,crayfish,50,16,0.320000
+85,hermit crab,50,37,0.740000
+86,white stork,50,48,0.960000
+87,spoonbill,50,50,1.000000
+88,flamingo,50,47,0.940000
+89,bittern,50,44,0.880000
+90,crane,50,39,0.780000
+91,limpkin,50,48,0.960000
+92,American coot,50,44,0.880000
+93,bustard,50,47,0.940000
+94,red-backed sandpiper,50,46,0.920000
+95,redshank,50,47,0.940000
+96,oystercatcher,50,45,0.900000
+97,pelican,50,45,0.900000
+98,albatross,50,44,0.880000
+99,sea lion,50,40,0.800000
